@@ -1,0 +1,38 @@
+# Environment variables
+.env
+.env.*            # Ignore all .env.* files
+!.env.example     # Keep the example in repo
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.mypy_cache/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+temp_repos/
+*.log
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Package manager
+uv.lock
