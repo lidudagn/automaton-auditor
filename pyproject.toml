@@ -6,9 +6,12 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "astroid>=4.1.1",
+    "docling>=2.75.0",
+    "fpdf>=1.7.2",
     "gitingest>=0.3.1",
     "langchain-openai>=1.1.10",
     "langgraph>=1.0.9",
     "pydantic>=2.12.5",
+    "pypdf>=6.7.3",
     "python-dotenv>=1.2.1",
 ]
