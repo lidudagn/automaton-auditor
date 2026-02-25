@@ -11,22 +11,28 @@ from typing import List, Dict, Optional, Union
 from src.state import Evidence
 
 
-def clone_repository_sandboxed(repo_url: str) -> Union[str, None]:
+def clone_repository_sandboxed(repo_url: str, full_history: bool = False) -> Union[str, None]:
     """
     Safely clone a git repository to a temporary directory.
     
-    Args: repo_url: GitHub URL (https://github.com/user/repo)
+    Args: 
+        repo_url: GitHub URL (https://github.com/user/repo)
+        full_history: If True, get full git history (slower). If False, use --depth 1 for speed.
     Returns: Path to cloned repository or None if failed
     """
-    # Create temp directory
     temp_dir = tempfile.mkdtemp(prefix="repo_audit_")
     
     try:
         print(f"📥 Cloning {repo_url}...")
         
-        # Use --depth 1 for faster clone (only latest commit)
+        # Use --depth 1 for speed, or full history if requested
+        clone_cmd = ["git", "clone"]
+        if not full_history:
+            clone_cmd.extend(["--depth", "1"])
+        clone_cmd.extend([repo_url, temp_dir])
+        
         result = subprocess.run(
-            ["git", "clone", "--depth", "1", repo_url, temp_dir],
+            clone_cmd,
             capture_output=True,
             text=True,
             timeout=60
@@ -38,13 +44,14 @@ def clone_repository_sandboxed(repo_url: str) -> Union[str, None]:
             shutil.rmtree(temp_dir, ignore_errors=True)
             return None
         
-        print(f"✅ Cloned successfully to {temp_dir}")
+        # Add note about history in the rationale later
+        if full_history:
+            print(f"✅ Cloned successfully with FULL history to {temp_dir}")
+        else:
+            print(f"✅ Cloned successfully (latest commit only) to {temp_dir}")
+            
         return temp_dir
         
-    except subprocess.TimeoutExpired:
-        print("❌ Clone timed out after 60 seconds")
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        return None
     except Exception as e:
         print(f"❌ Clone failed: {str(e)}")
         shutil.rmtree(temp_dir, ignore_errors=True)
@@ -244,8 +251,8 @@ def main_detective_work(repo_url: str) -> List[Evidence]:
     evidences = []
     repo_path = None
     
-    # STEP 1: Clone the repository
-    repo_path = clone_repository_sandboxed(repo_url)
+    # STEP 1: Clone the repository (using shallow clone for speed)
+    repo_path = clone_repository_sandboxed(repo_url, full_history=False)
     
     # STEP 2: Handle clone failure
     if not repo_path:
@@ -263,22 +270,45 @@ def main_detective_work(repo_url: str) -> List[Evidence]:
     evidences.append(Evidence(
         goal="Repository Access",
         found=True,
-        content=f"Successfully cloned to temp directory",
+        content="Successfully cloned to temp directory (shallow clone)",
         location=repo_url,
-        rationale="Repository cloned successfully for analysis",
+        rationale="Repository cloned successfully for analysis using --depth 1 for performance",
         confidence=0.9
     ))
     
     try:
         # STEP 4: Get git history
         commits = get_git_history(repo_path)
+        
+        # UPDATED: Git evidence with explanation for shallow clone
+        commit_count = len(commits)
+        is_shallow = commit_count == 1  # Shallow clones typically have 1 commit
+        
+        content = f"Found {commit_count} commit{'s' if commit_count != 1 else ''}"
+        if is_shallow:
+            content += " (shallow clone - latest commit only)"
+            
+        rationale = f"Repository has {commit_count} commit{'s' if commit_count != 1 else ''}"
+        if is_shallow:
+            rationale += ". Using --depth 1 for performance (full history not cloned)"
+        
+        # Confidence: 0.9 for multiple commits, 0.7 for shallow but working, 0.5 if no commits
+        if commit_count > 3:
+            confidence = 0.9
+        elif commit_count > 1:
+            confidence = 0.7
+        elif commit_count == 1:
+            confidence = 0.6  # Shallow clone - technically correct but limited
+        else:
+            confidence = 0.3
+            
         git_evidence = Evidence(
             goal="Git Forensic Analysis",
-            found=len(commits) > 0,
-            content=f"Found {len(commits)} commits" if commits else None,
+            found=commit_count > 0,
+            content=content,
             location="git log",
-            rationale=f"Repository has {len(commits)} commits",
-            confidence=0.9 if len(commits) > 3 else 0.5
+            rationale=rationale,
+            confidence=confidence
         )
         evidences.append(git_evidence)
         

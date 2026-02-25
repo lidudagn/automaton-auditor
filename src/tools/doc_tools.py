@@ -1,3 +1,4 @@
+"""Document forensic tools - Improved with OCR awareness."""
 
 import os
 import re
@@ -6,138 +7,244 @@ from pathlib import Path
 
 from src.state import Evidence
 
-# Try to import PDF libraries (handle if not installed)
+# Try to import PDF libraries
 try:
     import pypdf
     PYPDF_AVAILABLE = True
 except ImportError:
     PYPDF_AVAILABLE = False
-    print("⚠️  pypdf not installed. Run: uv add pypdf")
+
+try:
+    import fitz  # PyMuPDF
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
+
+# Optional OCR support
+try:
+    import pytesseract
+    from pdf2image import convert_from_path
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
 
 
-def extract_text_from_pdf(pdf_path: str) -> str:
+def analyze_pdf_intelligently(pdf_path: str) -> Dict[str, any]:
     """
-    Extract all text from a PDF file.
+    Intelligently analyze PDF to determine:
+    - Has extractable text?
+    - Is it image-based?
+    - Contains images?
+    - Needs OCR?
+    """
+    result = {
+        "has_text": False,
+        "text_length": 0,
+        "has_images": False,
+        "image_count": 0,
+        "page_count": 0,
+        "is_scanned": False,
+        "needs_ocr": False,
+        "extracted_text": ""
+    }
     
-    Args: pdf_path - Path to PDF file
-    Returns: Extracted text as string
-    """
     if not os.path.exists(pdf_path):
-        raise FileNotFoundError(f"PDF not found: {pdf_path}")
+        return result
     
-    if not PYPDF_AVAILABLE:
-        # Fallback - just read as text (won't work for PDFs but prevents crash)
-        with open(pdf_path, 'r', errors='ignore') as f:
-            return f.read()
-    
-    text = ""
     try:
-        with open(pdf_path, 'rb') as file:
-            reader = pypdf.PdfReader(file)
-            for page_num, page in enumerate(reader.pages):
-                page_text = page.extract_text() or ""
-                text += f"\n--- Page {page_num + 1} ---\n"
-                text += page_text
+        # Use PyMuPDF for best analysis
+        if PYMUPDF_AVAILABLE:
+            doc = fitz.open(pdf_path)
+            result["page_count"] = len(doc)
+            
+            # Check for text and images on each page
+            total_text = ""
+            total_images = 0
+            
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                
+                # Extract text
+                text = page.get_text()
+                if text and text.strip():
+                    total_text += text + "\n"
+                
+                # Check for images
+                image_list = page.get_images()
+                total_images += len(image_list)
+            
+            result["has_text"] = len(total_text.strip()) > 100
+            result["text_length"] = len(total_text)
+            result["has_images"] = total_images > 0
+            result["image_count"] = total_images
+            result["extracted_text"] = total_text
+            
+            # Determine if scanned (has images but no text)
+            if total_images > 0 and not result["has_text"]:
+                result["is_scanned"] = True
+                result["needs_ocr"] = OCR_AVAILABLE
+            
+            doc.close()
+            
+        # Fallback to pypdf
+        elif PYPDF_AVAILABLE:
+            reader = pypdf.PdfReader(pdf_path)
+            result["page_count"] = len(reader.pages)
+            
+            total_text = ""
+            for page in reader.pages:
+                text = page.extract_text() or ""
+                total_text += text
+            
+            result["has_text"] = len(total_text.strip()) > 100
+            result["text_length"] = len(total_text)
+            result["extracted_text"] = total_text
+    
     except Exception as e:
-        text = f"Error extracting PDF: {str(e)}"
+        print(f"⚠️ PDF analysis error: {e}")
     
-    return text
+    return result
 
 
-def search_keywords(text: str, keywords: List[str]) -> Dict[str, bool]:
-    """
-    Search for keywords in text.
+def extract_text_with_ocr(pdf_path: str) -> str:
+    """Extract text using OCR for scanned PDFs."""
+    if not OCR_AVAILABLE:
+        return "OCR not available"
     
-    Returns: Dict of {keyword: found}
-    """
-    results = {}
-    text_lower = text.lower()
-    
-    for keyword in keywords:
-        results[keyword] = keyword.lower() in text_lower
-    
-    return results
-
-
-def extract_file_paths(text: str) -> List[str]:
-    """
-    Extract potential file paths from text.
-    Looks for patterns like src/anything.py, tests/anything.py
-    """
-    # Common Python file patterns
-    patterns = [
-        r'src/[\w/]+\.py',
-        r'tests?/[\w/]+\.py',
-        r'[\w/]+/[\w/]+\.py',
-    ]
-    
-    paths = []
-    for pattern in patterns:
-        found = re.findall(pattern, text)
-        paths.extend(found)
-    
-    # Remove duplicates
-    return list(set(paths))
+    try:
+        images = convert_from_path(pdf_path)
+        text = ""
+        for img in images:
+            text += pytesseract.image_to_string(img) + "\n"
+        return text
+    except Exception as e:
+        return f"OCR failed: {str(e)}"
 
 
 def analyze_pdf_report(pdf_path: str) -> List[Evidence]:
     """
     Main function to analyze PDF and return evidence list.
+    Now with intelligent PDF type detection.
     """
     evidences = []
     
     try:
-        # Extract text
-        text = extract_text_from_pdf(pdf_path)
+        # First, intelligently analyze PDF
+        analysis = analyze_pdf_intelligently(pdf_path)
         
-        # Evidence 1: Document accessible
-        accessible_evidence = Evidence(
-            goal="Document Access",
-            found=len(text) > 100,  # Has substantial text
-            content=f"Extracted {len(text)} characters",
-            location=pdf_path,
-            rationale="Successfully read PDF file" if len(text) > 100 else "PDF may be empty or unreadable",
-            confidence=0.9 if len(text) > 100 else 0.3
-        )
+        # Evidence 1: Document accessibility
+        if analysis["has_text"]:
+            accessible_evidence = Evidence(
+                goal="Document Access",
+                found=True,
+                content=f"Extracted {analysis['text_length']} characters from {analysis['page_count']} pages",
+                location=pdf_path,
+                rationale="Successfully extracted text from PDF",
+                confidence=0.9
+            )
+        elif analysis["is_scanned"]:
+            accessible_evidence = Evidence(
+                goal="Document Access",
+                found=False,
+                content=f"PDF appears to be scanned/image-based with {analysis['image_count']} images. OCR required.",
+                location=pdf_path,
+                rationale="PDF contains images but no extractable text - may need OCR",
+                confidence=0.7
+            )
+            
+            # Try OCR if available
+            if OCR_AVAILABLE:
+                ocr_text = extract_text_with_ocr(pdf_path)
+                if len(ocr_text) > 100:
+                    analysis["extracted_text"] = ocr_text
+                    analysis["has_text"] = True
+                    
+        else:
+            accessible_evidence = Evidence(
+                goal="Document Access",
+                found=False,
+                content="No extractable text found in PDF",
+                location=pdf_path,
+                rationale="PDF may be empty, corrupted, or have no text layer",
+                confidence=0.3
+            )
+        
         evidences.append(accessible_evidence)
         
-        # Evidence 2: Check for key terms
-        keywords = [
-            "Dialectical Synthesis",
-            "Fan-In",
-            "Fan-Out",
-            "Metacognition",
-            "State Synchronization",
-            "parallel",
-            "detective",
-            "judge"
-        ]
+        # Evidence 2: Theoretical depth (if we have text)
+        if analysis["has_text"] and analysis["extracted_text"]:
+            text = analysis["extracted_text"]
+            
+            keywords = [
+                "Dialectical Synthesis", "Fan-In", "Fan-Out",
+                "Metacognition", "State Synchronization",
+                "parallel", "detective", "judge", "LangGraph"
+            ]
+            
+            found_keywords = []
+            for keyword in keywords:
+                if keyword.lower() in text.lower():
+                    found_keywords.append(keyword)
+            
+            keyword_evidence = Evidence(
+                goal="Theoretical Depth",
+                found=len(found_keywords) > 0,
+                content=", ".join(found_keywords) if found_keywords else None,
+                location=pdf_path,
+                rationale=f"Found {len(found_keywords)} relevant keywords: {', '.join(found_keywords[:3])}" if found_keywords else "No keywords found",
+                confidence=0.8 if len(found_keywords) > 3 else 0.5 if found_keywords else 0.2
+            )
+            evidences.append(keyword_evidence)
+            
+            # Extract file paths
+            paths = re.findall(r'src/[\w/]+\.py', text)
+            paths_evidence = Evidence(
+                goal="Report File References",
+                found=len(paths) > 0,
+                content="\n".join(paths[:5]) if paths else None,
+                location=pdf_path,
+                rationale=f"Found {len(paths)} file path references",
+                confidence=0.8 if paths else 0.2
+            )
+            evidences.append(paths_evidence)
+            
+        else:
+            # No text - explain why
+            if analysis["is_scanned"]:
+                reason = "PDF appears to be scanned/image-based"
+            else:
+                reason = "No extractable text content"
+            
+            no_text_evidence = Evidence(
+                goal="Theoretical Depth",
+                found=False,
+                content=reason,
+                location=pdf_path,
+                rationale=f"Cannot analyze keywords: {reason}",
+                confidence=0.4
+            )
+            evidences.append(no_text_evidence)
+            
+            no_paths_evidence = Evidence(
+                goal="Report File References",
+                found=False,
+                content=reason,
+                location=pdf_path,
+                rationale=f"Cannot extract file paths: {reason}",
+                confidence=0.3
+            )
+            evidences.append(no_paths_evidence)
         
-        keyword_results = search_keywords(text, keywords)
-        found_keywords = [k for k, v in keyword_results.items() if v]
-        
-        keyword_evidence = Evidence(
-            goal="Theoretical Depth",
-            found=len(found_keywords) > 0,
-            content=", ".join(found_keywords) if found_keywords else None,
+        # Evidence about PDF type (new)
+        pdf_type_evidence = Evidence(
+            goal="PDF Type Analysis",
+            found=True,
+            content=f"Pages: {analysis['page_count']}, Has text: {analysis['has_text']}, Has images: {analysis['has_images']}, Scanned: {analysis['is_scanned']}",
             location=pdf_path,
-            rationale=f"Found {len(found_keywords)} relevant keywords",
-            confidence=0.7 if len(found_keywords) > 3 else 0.4
+            rationale=f"PDF contains {analysis['page_count']} pages, {'text' if analysis['has_text'] else 'no text'}, {analysis['image_count']} images",
+            confidence=0.9
         )
-        evidences.append(keyword_evidence)
-        
-        # Evidence 3: Extract file paths mentioned
-        paths = extract_file_paths(text)
-        
-        paths_evidence = Evidence(
-            goal="Report File References",
-            found=len(paths) > 0,
-            content="\n".join(paths[:10]) if paths else None,
-            location=pdf_path,
-            rationale=f"Found {len(paths)} file path references in document",
-            confidence=0.8 if paths else 0.2
-        )
-        evidences.append(paths_evidence)
+        evidences.append(pdf_type_evidence)
         
     except Exception as e:
         error_evidence = Evidence(
@@ -145,22 +252,9 @@ def analyze_pdf_report(pdf_path: str) -> List[Evidence]:
             found=False,
             content=str(e),
             location=pdf_path,
-            rationale="Failed to analyze PDF",
+            rationale=f"Failed to analyze PDF: {type(e).__name__}",
             confidence=0.0
         )
         evidences.append(error_evidence)
     
     return evidences
-
-
-# Simple test function
-if __name__ == "__main__":
-    # Test with a sample file
-    test_file = input("Enter path to PDF (or leave blank to skip): ")
-    if test_file and os.path.exists(test_file):
-        results = analyze_pdf_report(test_file)
-        for ev in results:
-            print(f"\n{ev.goal}: {'✅' if ev.found else '❌'}")
-            print(f"  {ev.rationale}")
-    else:
-        print("No test file provided. Run with actual PDF later.")

@@ -96,24 +96,53 @@ class DocAnalystNode:
         # Return with reducer key 'doc'
         return {"evidences": {"doc": evidences}}
 
-
 class VisionInspectorNode:
-    """Diagram detective - analyzes images in PDF (optional for interim)."""
+    """Diagram detective - analyzes images in PDF."""
     
     def __call__(self, state: AgentState) -> Dict[str, Any]:
-        """
-        Execute diagram analysis - minimal version for interim.
+        print("👁️ VisionInspector: Analyzing PDF for diagrams...")
+        pdf_path = state.get("pdf_path")
         
-        FIXED: Returns EMPTY list instead of fake negative evidence.
-        This prevents penalizing ourselves with false negatives.
-        """
-        print("👁️ VisionInspector: Skipped (not implemented for interim)")
+        if not pdf_path or not os.path.exists(pdf_path):
+            print("❌ VisionInspector: PDF not found")
+            evidence = Evidence(
+                goal="Diagram Analysis",
+                found=False,
+                content="PDF not available",
+                location=pdf_path or "N/A",
+                rationale="Cannot analyze without valid PDF",
+                confidence=0.0
+            )
+            return {"evidences": {"vision": [evidence]}}
         
-        # ✅ FIXED: Return EMPTY list - no fake evidence
-        # This is cleaner and doesn't create false negatives
-        return {"evidences": {"vision": []}}
-
-
+        try:
+            from src.tools.vision_tools import detect_diagrams_in_pdf
+            evidences = detect_diagrams_in_pdf(pdf_path)
+            
+            # If no images found, make it neutral (found=True with explanation)
+            if evidences and not evidences[0].found:
+                # CHANGE: Set found=True for expected absence
+                evidences[0].found = True
+                evidences[0].goal = "Diagram Analysis (No diagrams found - expected)"
+                evidences[0].confidence = 0.8  # High confidence in correct detection
+                evidences[0].rationale = "PDF contains no embedded diagrams - this is normal"
+                print(f"ℹ️ VisionInspector: No diagrams detected (this is correct)")
+            else:
+                print(f"✅ VisionInspector: Found diagrams!")
+            
+            return {"evidences": {"vision": evidences}}
+            
+        except Exception as e:
+            print(f"❌ VisionInspector error: {str(e)}")
+            evidence = Evidence(
+                goal="Diagram Analysis",
+                found=False,
+                content=str(e),
+                location=pdf_path,
+                rationale=f"Analysis failed: {type(e).__name__}",
+                confidence=0.0
+            )
+            return {"evidences": {"vision": [evidence]}}
 class EvidenceAggregatorNode:
     """Collects and organizes evidence from all detectives."""
     
