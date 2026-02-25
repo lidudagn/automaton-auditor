@@ -1,4 +1,3 @@
-
 import operator
 from typing import Annotated, Dict, List, Literal, Optional, Any
 from typing_extensions import TypedDict

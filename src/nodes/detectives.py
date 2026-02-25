@@ -1,3 +1,4 @@
+"""Detective nodes for evidence collection - Interim Submission."""
 
 import os
 from typing import Dict, List, Any
@@ -18,6 +19,7 @@ class RepoInvestigatorNode:
         """
         repo_url = state.get("repo_url")
         if not repo_url:
+            print("❌ RepoInvestigator: No repo URL provided")
             error_evidence = Evidence(
                 goal="Repository Access",
                 found=False,
@@ -42,7 +44,7 @@ class RepoInvestigatorNode:
                 found=False,
                 content=str(e),
                 location=repo_url,
-                rationale="Failed to analyze repository",
+                rationale=f"Failed to analyze repository: {type(e).__name__}",
                 confidence=0.0
             )]
         
@@ -62,6 +64,7 @@ class DocAnalystNode:
         """
         pdf_path = state.get("pdf_path")
         if not pdf_path:
+            print("❌ DocAnalyst: No PDF path provided")
             error_evidence = Evidence(
                 goal="Document Access",
                 found=False,
@@ -86,7 +89,7 @@ class DocAnalystNode:
                 found=False,
                 content=str(e),
                 location=pdf_path,
-                rationale="Failed to analyze PDF",
+                rationale=f"Failed to analyze PDF: {type(e).__name__}",
                 confidence=0.0
             )]
         
@@ -100,20 +103,15 @@ class VisionInspectorNode:
     def __call__(self, state: AgentState) -> Dict[str, Any]:
         """
         Execute diagram analysis - minimal version for interim.
+        
+        FIXED: Returns EMPTY list instead of fake negative evidence.
+        This prevents penalizing ourselves with false negatives.
         """
-        print("👁️ VisionInspector: Skipping (optional for interim)")
+        print("👁️ VisionInspector: Skipped (not implemented for interim)")
         
-        # Return empty evidence list with 'vision' key
-        evidence = Evidence(
-            goal="Diagram Analysis",
-            found=False,
-            content="Vision inspector not implemented for interim",
-            location=state.get("pdf_path", "N/A"),
-            rationale="Optional component - skipped for Wednesday submission",
-            confidence=0.0
-        )
-        
-        return {"evidences": {"vision": [evidence]}}
+        # ✅ FIXED: Return EMPTY list - no fake evidence
+        # This is cleaner and doesn't create false negatives
+        return {"evidences": {"vision": []}}
 
 
 class EvidenceAggregatorNode:
@@ -128,48 +126,92 @@ class EvidenceAggregatorNode:
         """
         evidences = state.get("evidences", {})
         
-        print("\n" + "="*50)
-        print("📊 EVIDENCE AGGREGATOR")
-        print("="*50)
+        print("\n" + "="*60)
+        print("📊 EVIDENCE AGGREGATOR".center(60))
+        print("="*60)
         
         total = 0
+        successful = 0
+        
         for detector, ev_list in evidences.items():
             count = len(ev_list)
             total += count
-            print(f"  {detector}: {count} evidence items")
             
-            # Print first evidence from each detector as sample
-            if ev_list:
-                sample = ev_list[0]
-                print(f"    Sample: {sample.goal} - {'✅' if sample.found else '❌'}")
+            # Count successful evidence (found=True)
+            successful += sum(1 for ev in ev_list if ev.found)
+            
+            # Format detector name for display
+            det_name = detector.upper()
+            print(f"\n  {det_name}: {count} evidence items")
+            
+            # Print sample evidence (first 2 items max)
+            for i, ev in enumerate(ev_list[:2]):
+                status = "✅" if ev.found else "❌"
+                print(f"    {i+1}. {status} {ev.goal}")
+                print(f"       {ev.rationale[:60]}..." if len(ev.rationale) > 60 else f"       {ev.rationale}")
         
-        print(f"\n  TOTAL: {total} evidence items collected")
-        print("="*50 + "\n")
+        # Summary statistics
+        print("\n" + "-"*60)
+        print(f"  📈 SUMMARY:")
+        print(f"     Total evidence items: {total}")
+        print(f"     Successful findings: {successful}")
+        print(f"     Success rate: {successful/total*100:.1f}%" if total > 0 else "     No evidence collected")
+        print("="*60 + "\n")
         
         # Return empty - state already updated via reducers
         return {}
 
 
 if __name__ == "__main__":
-    print("Testing detective nodes...")
+    print("\n🧪 Testing detective nodes...")
+    print("="*40)
     
     # Create test state
     test_state = {
         "repo_url": "https://github.com/langchain-ai/langgraph",
-        "pdf_path": "test_report.pdf",  # ← CHANGE THIS LINE
+        "pdf_path": "test_report.pdf",  
         "rubric_dimensions": [],
         "evidences": {},
         "opinions": [],
         "final_report": None
     }
-    # Test RepoInvestigator
+    
+    print("\n🔍 Testing RepoInvestigator...")
     repo_node = RepoInvestigatorNode()
-    result = repo_node(test_state)
-    print(f"\nRepoInvestigator output: {list(result.keys())}")
+    repo_result = repo_node(test_state)
+    repo_ev_count = len(repo_result.get("evidences", {}).get("repo", []))
+    print(f"   → Found {repo_ev_count} evidence items")
     
-    # Test DocAnalyst
+    print("\n📄 Testing DocAnalyst...")
     doc_node = DocAnalystNode()
-    result = doc_node(test_state)
-    print(f"DocAnalyst output: {list(result.keys())}")
+    doc_result = doc_node(test_state)
+    doc_ev_count = len(doc_result.get("evidences", {}).get("doc", []))
+    print(f"   → Found {doc_ev_count} evidence items")
     
-    print("\n✅ Detective nodes ready")
+    print("\n👁️ Testing VisionInspector...")
+    vision_node = VisionInspectorNode()
+    vision_result = vision_node(test_state)
+    vision_ev_count = len(vision_result.get("evidences", {}).get("vision", []))
+    print(f"   → Found {vision_ev_count} evidence items (empty = correct!)")
+    
+    print("\n✅ All detective nodes ready!")
+    
+    # Test aggregator with combined results
+    print("\n📊 Testing EvidenceAggregator...")
+    
+    # Combine results into one state
+    combined_state = {
+        "repo_url": test_state["repo_url"],
+        "pdf_path": test_state["pdf_path"],
+        "rubric_dimensions": [],
+        "evidences": {
+            **repo_result.get("evidences", {}),
+            **doc_result.get("evidences", {}),
+            **vision_result.get("evidences", {})
+        },
+        "opinions": [],
+        "final_report": None
+    }
+    
+    agg_node = EvidenceAggregatorNode()
+    agg_node(combined_state)
