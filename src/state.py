@@ -1,61 +1,170 @@
-import operator
-from typing import Annotated, Dict, List, Literal, Optional, Any
-from typing_extensions import TypedDict
+# import operator
+# from typing import Annotated, Dict, List, Literal, Optional, Any
+# from typing_extensions import TypedDict
+
+# from pydantic import BaseModel, Field
+
+
+# class Evidence(BaseModel):
+#     """Forensic evidence collected by detectives - PURE FACTS ONLY."""
+#     goal: str = Field(description="What we were looking for (from rubric)")
+#     found: bool = Field(description="Whether the artifact exists")
+#     content: Optional[str] = Field(default=None, description="The actual evidence (code snippet, text, etc.)")
+#     location: str = Field(description="File path or commit hash where evidence was found")
+#     rationale: str = Field(description="Why we're confident about this evidence")
+#     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score 0.0 to 1.0")
+
+
+# class JudicialOpinion(BaseModel):
+#     """Opinion from a judge persona - will be used in final submission."""
+#     judge: Literal["Prosecutor", "Defense", "TechLead"]
+#     criterion_id: str
+#     score: int = Field(ge=1, le=5, description="Score from 1-5")
+#     argument: str = Field(description="Detailed reasoning for the score")
+#     cited_evidence: List[str] = Field(description="List of evidence IDs used")
+
+
+# class CriterionResult(BaseModel):
+#     """Final result for a single rubric criterion."""
+#     dimension_id: str
+#     dimension_name: str
+#     final_score: int = Field(ge=1, le=5)
+#     judge_opinions: List[JudicialOpinion]
+#     dissent_summary: Optional[str] = None
+#     remediation: str = ""
+
+
+# class AuditReport(BaseModel):
+#     """Final audit report."""
+#     repo_url: str
+#     executive_summary: str
+#     overall_score: float
+#     criteria: List[CriterionResult]
+#     remediation_plan: str
+
+
+# class AgentState(TypedDict):
+#     """State passed between graph nodes - WITH REDUCERS for parallel execution."""
+    
+#     repo_url: str
+#     pdf_path: str
+#     rubric_dimensions: List[Dict[str, AnyP]]
+    
+#     evidences: Annotated[Dict[str, List[Evidence]], operator.ior]  
+#     """Key: detective name ('repo', 'doc', 'vision'), Value: list of Evidence objects.
+#        operator.ior merges dictionaries from parallel nodes."""
+    
+#     opinions: Annotated[List[JudicialOpinion], operator.add]
+#     """List of JudicialOpinion objects from all judges.
+#        operator.add concatenates lists from parallel nodes."""
+    
+#     final_report: Optional[AuditReport]
+
+
+"""State definitions for Automaton Auditor - Phase 2 (Pydantic)."""
 
 from pydantic import BaseModel, Field
+from typing import List, Dict, Optional, Any, Literal
+from datetime import datetime
 
 
 class Evidence(BaseModel):
-    """Forensic evidence collected by detectives - PURE FACTS ONLY."""
-    goal: str = Field(description="What we were looking for (from rubric)")
+    """Forensic evidence collected by detectives."""
+    
+    goal: str = Field(description="What we were looking for")
     found: bool = Field(description="Whether the artifact exists")
-    content: Optional[str] = Field(default=None, description="The actual evidence (code snippet, text, etc.)")
-    location: str = Field(description="File path or commit hash where evidence was found")
-    rationale: str = Field(description="Why we're confident about this evidence")
-    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score 0.0 to 1.0")
+    content: Optional[str] = Field(default=None, description="Actual evidence content")
+    location: str = Field(description="File path or commit hash")
+    rationale: str = Field(description="Why we're confident")
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score 0-1")
+    timestamp: datetime = Field(default_factory=datetime.now, description="When evidence was collected")
+    detector: str = Field(default="unknown", description="Which detective collected this")
 
 
 class JudicialOpinion(BaseModel):
-    """Opinion from a judge persona - will be used in final submission."""
+    """Opinion from a judge persona."""
+    
     judge: Literal["Prosecutor", "Defense", "TechLead"]
     criterion_id: str
     score: int = Field(ge=1, le=5, description="Score from 1-5")
-    argument: str = Field(description="Detailed reasoning for the score")
-    cited_evidence: List[str] = Field(description="List of evidence IDs used")
+    argument: str = Field(description="Detailed reasoning")
+    cited_evidence: List[str] = Field(default_factory=list, description="Evidence IDs referenced")
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 
 class CriterionResult(BaseModel):
     """Final result for a single rubric criterion."""
+    
     dimension_id: str
     dimension_name: str
     final_score: int = Field(ge=1, le=5)
-    judge_opinions: List[JudicialOpinion]
+    prosecutor_score: int = Field(ge=1, le=5)
+    defense_score: int = Field(ge=1, le=5)
+    tech_lead_score: int = Field(ge=1, le=5)
     dissent_summary: Optional[str] = None
-    remediation: str = ""
+    remediation: str = Field(default="", description="Specific improvement instructions")
 
 
 class AuditReport(BaseModel):
     """Final audit report."""
+    
     repo_url: str
+    audit_date: datetime = Field(default_factory=datetime.now)
     executive_summary: str
     overall_score: float
     criteria: List[CriterionResult]
     remediation_plan: str
+    evidence_summary: Dict[str, int] = Field(description="Count of evidence by detector")
 
 
-class AgentState(TypedDict):
-    """State passed between graph nodes - WITH REDUCERS for parallel execution."""
+class AgentState(BaseModel):
+    """Shared state flowing through the LangGraph - Pydantic version."""
     
+    # Inputs
     repo_url: str
     pdf_path: str
-    rubric_dimensions: List[Dict[str, Any]]
+    rubric_dimensions: List[Dict[str, Any]] = Field(default_factory=list)
     
-    evidences: Annotated[Dict[str, List[Evidence]], operator.ior]  
-    """Key: detective name ('repo', 'doc', 'vision'), Value: list of Evidence objects.
-       operator.ior merges dictionaries from parallel nodes."""
+    # Evidence collected
+    evidences: Dict[str, List[Evidence]] = Field(default_factory=dict)
     
-    opinions: Annotated[List[JudicialOpinion], operator.add]
-    """List of JudicialOpinion objects from all judges.
-       operator.add concatenates lists from parallel nodes."""
+    # Judicial opinions
+    opinions: List[JudicialOpinion] = Field(default_factory=list)
     
-    final_report: Optional[AuditReport]
+    # Final report
+    final_report: Optional[AuditReport] = None
+    
+    # Metadata
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    class Config:
+        arbitrary_types_allowed = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+    
+    def add_evidence(self, detector: str, evidence: Evidence) -> None:
+        """Add evidence to the state."""
+        if detector not in self.evidences:
+            self.evidences[detector] = []
+        evidence.detector = detector
+        self.evidences[detector].append(evidence)
+    
+    def get_evidence_count(self) -> int:
+        """Get total number of evidence items."""
+        return sum(len(ev_list) for ev_list in self.evidences.values())
+    
+    def get_successful_evidence(self) -> int:
+        """Get count of successful evidence (found=True)."""
+        return sum(
+            1 for ev_list in self.evidences.values() 
+            for ev in ev_list if ev.found
+        )
+    
+    def get_success_rate(self) -> float:
+        """Calculate success rate percentage."""
+        total = self.get_evidence_count()
+        if total == 0:
+            return 0.0
+        successful = self.get_successful_evidence()
+        return (successful / total) * 100

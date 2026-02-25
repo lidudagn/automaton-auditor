@@ -35,7 +35,7 @@ def clone_repository_sandboxed(repo_url: str, full_history: bool = False) -> Uni
             clone_cmd,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=300
         )
         
         if result.returncode != 0:
