@@ -66,10 +66,13 @@ def create_full_graph() -> StateGraph:
     builder.add_edge("doc_analyst", "evidence_aggregator")
     builder.add_edge("vision_inspector", "evidence_aggregator")
     
-    # Evidence to judges (parallel fan-out)
-    builder.add_edge("evidence_aggregator", "prosecutor")
-    builder.add_edge("evidence_aggregator", "defense")
-    builder.add_edge("evidence_aggregator", "tech_lead")
+    def should_judge(state: AgentState):
+        """Route to judges only if evidence was collected."""
+        if state.get_evidence_count() > 0:
+            return ["prosecutor", "defense", "tech_lead"]
+        return [END]
+
+    builder.add_conditional_edges("evidence_aggregator", should_judge)
     
     # Judges to opinion aggregator (fan-in)
     builder.add_edge("prosecutor", "opinion_aggregator")
@@ -150,9 +153,10 @@ if __name__ == "__main__":
         # Try detective graph first
         result = det_graph.invoke(test_state)
         print(f"\n✅ Detective graph executed successfully!")
-        print(f"   Evidence collected: {list(result.evidences.keys())}")
+        evidences = result.get("evidences", {})
+        print(f"   Evidence collected: {list(evidences.keys())}")
         
-        total_evidence = result.get_evidence_count()
+        total_evidence = sum(len(ev_list) for ev_list in evidences.values())
         print(f"   Total evidence items: {total_evidence}")
         
         # Test full graph with judges
@@ -166,8 +170,9 @@ if __name__ == "__main__":
         
         judge_result = full_graph.invoke(judge_state)
         print(f"\n✅ Full graph executed successfully!")
-        print(f"   Evidence: {judge_result.get_evidence_count()} items")
-        print(f"   Opinions: {len(judge_result.opinions)}")
+        judge_evidences = judge_result.get("evidences", {})
+        print(f"   Evidence: {sum(len(ev_list) for ev_list in judge_evidences.values())} items")
+        print(f"   Opinions: {len(judge_result.get('opinions', []))}")
         
     except Exception as e:
         print(f"\n❌ Execution error: {str(e)}")

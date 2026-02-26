@@ -22,12 +22,25 @@ git clone https://github.com/yourusername/automaton-auditor
 cd automaton-auditor
 uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Install dependencies exactly as pinned in the reproducible lockfile (uv.lock)
 uv sync
-
-# Copy environment template
-cp .env.example .env
-# Add your API keys to .env
 ```
+
+### Environment Variables
+
+Copy the environment template:
+```bash
+cp .env.example .env
+```
+
+Populate the `.env` file with the following keys:
+- `OPENAI_API_KEY`: Required for default judge and detective LLMs (GPT-4o/mini).
+- `ANTHROPIC_API_KEY`: Optional, if replacing default LLMs with Claude models.
+- `LANGCHAIN_API_KEY`: LangSmith API key for tracing and debugging runs.
+- `LANGCHAIN_TRACING_V2="true"`: Enables tracing to LangSmith.
+- `LANGCHAIN_PROJECT`: Your project name for telemetry formatting.
+
+*(Note: While `pyproject.toml` manages loose dependencies, `uv.lock` ensures exact, reproducible dependency resolution. If you aren't using `uv`, you can generate a strict `requirements.txt` via `uv pip compile pyproject.toml -o requirements.txt`.)*
 
 ## Usage
 

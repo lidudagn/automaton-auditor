@@ -251,19 +251,22 @@ class TechLeadNode(BaseJudgeNode):
         return {"opinions": opinions}
 
 
+from src.state import AgentState, JudicialOpinion, Evidence, AuditReport, CriterionResult
+
 class OpinionAggregatorNode:
-    """Collects and displays opinions from all judges."""
+    """Collects opinions and synthesizes the Deterministic Chief Justice verdict."""
     
     def __call__(self, state: AgentState) -> Dict[str, Any]:
-        """Aggregate and display judicial opinions."""
+        """Aggregate opinions via deterministic rules and produce final AuditReport."""
         opinions = state.opinions
         
         if not opinions:
             print("\n⚠️  No opinions to aggregate")
             return {}
         
+        
         print("\n" + "="*70)
-        print("⚖️  JUDICIAL OPINIONS AGGREGATOR".center(70))
+        print("⚖️  CHIEF JUSTICE OPINION SYNTHESIS".center(70))
         print("="*70)
         
         # Group by criterion
@@ -272,27 +275,92 @@ class OpinionAggregatorNode:
             if op.criterion_id not in by_criterion:
                 by_criterion[op.criterion_id] = []
             by_criterion[op.criterion_id].append(op)
+            
+        final_criteria_results = []
+        overall_score_sum = 0
         
-        # Display opinions by criterion
-        for criterion, ops in by_criterion.items():
-            print(f"\n📋 {criterion}:")
+        for criterion_id, ops in by_criterion.items():
+            print(f"\n📋 Evaluating: {criterion_id}")
             
-            # Calculate average score
-            avg_score = sum(op.score for op in ops) / len(ops)
-            
+            # Map judge scores
+            scores = {"Prosecutor": 3, "Defense": 3, "TechLead": 3}
+            arguments = {}
             for op in ops:
-                score_color = "🟢" if op.score >= 4 else "🟡" if op.score >= 3 else "🔴"
-                print(f"  {score_color} {op.judge}: {op.score}/5")
-                print(f"     {op.argument[:100]}...")
+                scores[op.judge] = op.score
+                arguments[op.judge] = op.argument
+                print(f"  [{op.judge}] {op.score}/5 - {op.argument[:70]}...")
             
-            print(f"  📊 Average Score: {avg_score:.1f}/5")
-        
-        # Summary statistics
-        print("\n" + "-"*70)
-        print("  📈 SUMMARY:")
-        print(f"     Total opinions: {len(opinions)}")
-        print(f"     Unique criteria: {len(by_criterion)}")
-        print(f"     Overall average: {sum(op.score for op in opinions)/len(opinions):.1f}/5")
+            # 1. Base Weighted Score (TechLead has 2x weight)
+            base_score = round(
+                (scores["Prosecutor"] + scores["Defense"] + (2 * scores["TechLead"])) / 4
+            )
+            final_score = base_score
+            dissent_summary = None
+            remediation = "Continue tracking."
+            
+            # 2. Hard Rule: Security Flaw Cap
+            if "safe" in criterion_id.lower() or "security" in criterion_id.lower():
+                if any(s < 3 for s in scores.values()):
+                    print("  🚨 SECURITY FLAW TRIGGER: Score capped at 3.")
+                    final_score = min(final_score, 3)
+                    remediation = "IMMEDIATE FIX REQUIRED: Security/safety vulnerabilities detected by judges."
+            
+            # 3. Hard Rule: No Evidence Auto-Fail
+            evidence_count = 0
+            for det, ev_list in state.evidences.items():
+                for ev in ev_list:
+                    if (criterion_id.lower() in ev.goal.lower() or 
+                        any(word in ev.goal.lower() for word in criterion_id.lower().split('_'))):
+                        if ev.found:
+                            evidence_count += 1
+            
+            if evidence_count == 0:
+                print("  🚨 MISSING EVIDENCE TRIGGER: Auto-failed to 1.")
+                final_score = 1
+                remediation = f"CRITICAL MISSING COMPONENT: No artifacts found matching {criterion_id}."
+            
+            # 4. Hard Rule: High Disagreement Variance
+            max_score = max(scores.values())
+            min_score = min(scores.values())
+            if max_score - min_score >= 2:
+                print(f"  ⚠️ HIGH VARIANCE TRIGGER (Δ{max_score-min_score}): Attaching dissent log.")
+                dissent_summary = (
+                    f"Strong disagreement between judges.\n"
+                    f"Prosecutor ({scores['Prosecutor']}/5): {arguments.get('Prosecutor', 'N/A')}\n"
+                    f"Defense ({scores['Defense']}/5): {arguments.get('Defense', 'N/A')}"
+                )
+            
+            print(f"  ⭐ Final Synthesized Score: {final_score}/5")
+            
+            # Save criterion result
+            final_criteria_results.append(CriterionResult(
+                dimension_id=criterion_id,
+                dimension_name=criterion_id.replace("_", " ").title(),
+                final_score=final_score,
+                prosecutor_score=scores["Prosecutor"],
+                defense_score=scores["Defense"],
+                tech_lead_score=scores["TechLead"],
+                dissent_summary=dissent_summary,
+                remediation=remediation
+            ))
+            
+            overall_score_sum += final_score
+
+        # Generate Final Audit Report
+        overall_avg = overall_score_sum / len(by_criterion) if by_criterion else 0.0
+        print(f"\n🏆 CHIEF JUSTICE OVERALL VERDICT: {overall_avg:.1f}/5.0")
         print("="*70 + "\n")
         
-        return {}
+        evidence_summary_dict = {k: len(v) for k, v in state.evidences.items()}
+        
+        final_report = AuditReport(
+            repo_url=state.repo_url,
+            executive_summary=f"Automaton Auditor examined the repository and rendered a final score of {overall_avg:.1f}/5.0. See criterion breakdown for exact flaws and mitigating factors.",
+            overall_score=overall_avg,
+            criteria=final_criteria_results,
+            remediation_plan="Review the 'Criteria Evaluation' scores of 3 or below and apply the suggested fixes.",
+            evidence_summary=evidence_summary_dict
+        )
+        
+        # Return the report as an update dict to the state
+        return {"final_report": final_report}

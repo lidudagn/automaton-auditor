@@ -314,9 +314,11 @@ class DocAnalystNode:
         """
         pdf_path = state.pdf_path
         
+        evidences_list = []
+        
         if not pdf_path:
             print("❌ DocAnalyst: No PDF path provided")
-            state.add_evidence("doc", Evidence(
+            evidences_list.append(Evidence(
                 goal="Document Access",
                 found=False,
                 content="No PDF path provided",
@@ -324,20 +326,19 @@ class DocAnalystNode:
                 rationale="Missing PDF path in state",
                 confidence=0.0
             ))
-            return {}
+            return {"evidences": {"doc": evidences_list}}
         
         print("📄 DocAnalyst: Starting PDF analysis...")
         
         try:
             # Run PDF analysis tools
             evidences = doc_tools.analyze_pdf_report(pdf_path)
-            for evidence in evidences:
-                state.add_evidence("doc", evidence)
+            evidences_list.extend(evidences)
             print(f"✅ DocAnalyst: Added {len(evidences)} evidence items")
             
         except Exception as e:
             print(f"❌ DocAnalyst error: {str(e)}")
-            state.add_evidence("doc", Evidence(
+            evidences_list.append(Evidence(
                 goal="Document Analysis",
                 found=False,
                 content=str(e),
@@ -346,7 +347,7 @@ class DocAnalystNode:
                 confidence=0.0
             ))
         
-        return {}
+        return {"evidences": {"doc": evidences_list}}
 
 
 class VisionInspectorNode:
@@ -361,9 +362,11 @@ class VisionInspectorNode:
         """
         pdf_path = state.pdf_path
         
+        evidences_list = []
+        
         if not pdf_path or not os.path.exists(pdf_path):
             print("❌ VisionInspector: PDF not found")
-            state.add_evidence("vision", Evidence(
+            evidences_list.append(Evidence(
                 goal="Diagram Analysis",
                 found=False,
                 content="PDF not available",
@@ -371,7 +374,7 @@ class VisionInspectorNode:
                 rationale="Cannot analyze without valid PDF",
                 confidence=0.0
             ))
-            return {}
+            return {"evidences": {"vision": evidences_list}}
         
         print("👁️ VisionInspector: Analyzing PDF for diagrams...")
         
@@ -388,12 +391,11 @@ class VisionInspectorNode:
             else:
                 print(f"✅ VisionInspector: Found diagrams!")
             
-            for evidence in evidences:
-                state.add_evidence("vision", evidence)
+            evidences_list.extend(evidences)
             
         except Exception as e:
             print(f"❌ VisionInspector error: {str(e)}")
-            state.add_evidence("vision", Evidence(
+            evidences_list.append(Evidence(
                 goal="Diagram Analysis",
                 found=False,
                 content=str(e),
@@ -402,7 +404,7 @@ class VisionInspectorNode:
                 confidence=0.0
             ))
         
-        return {}
+        return {"evidences": {"vision": evidences_list}}
 
 
 class EvidenceAggregatorNode:

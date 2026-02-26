@@ -64,8 +64,24 @@
 """State definitions for Automaton Auditor - Phase 2 (Pydantic)."""
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Any, Literal
+from typing import List, Dict, Optional, Any, Literal, Annotated
 from datetime import datetime
+import operator
+
+def merge_dicts(left: Dict[str, List[Any]], right: Dict[str, List[Any]]) -> Dict[str, List[Any]]:
+    """Merge evidence dictionaries by concatenating lists for matching keys."""
+    if not left:
+        return right.copy()
+    if not right:
+        return left.copy()
+    
+    res = left.copy()
+    for k, v in right.items():
+        if k in res:
+            res[k] = res[k] + v
+        else:
+            res[k] = v
+    return res
 
 
 class Evidence(BaseModel):
@@ -126,10 +142,10 @@ class AgentState(BaseModel):
     rubric_dimensions: List[Dict[str, Any]] = Field(default_factory=list)
     
     # Evidence collected
-    evidences: Dict[str, List[Evidence]] = Field(default_factory=dict)
+    evidences: Annotated[Dict[str, List[Evidence]], merge_dicts] = Field(default_factory=dict)
     
     # Judicial opinions
-    opinions: List[JudicialOpinion] = Field(default_factory=list)
+    opinions: Annotated[List[JudicialOpinion], operator.add] = Field(default_factory=list)
     
     # Final report
     final_report: Optional[AuditReport] = None
