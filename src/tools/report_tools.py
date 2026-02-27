@@ -15,6 +15,11 @@ def generate_markdown_report(report: AuditReport) -> str:
     for detector, count in report.evidence_summary.items():
         md.append(f"- **{detector.upper()}**: {count} items")
         
+    if getattr(report, "detected_contradictions", None):
+        md.append(f"\n### ⚠️ Critical Findings (Intelligence Amplification)")
+        for contra in report.detected_contradictions:
+            md.append(f"- **CONTRADICTION DETECTED**: {contra}")
+            
     md.append(f"\n{report.executive_summary}\n")
     md.append(f"## Criteria Evaluation\n")
     
@@ -28,6 +33,10 @@ def generate_markdown_report(report: AuditReport) -> str:
         if crit.dissent_summary:
             md.append(f"\n> [!WARNING] High Judge Disagreement")
             md.append(f"> {crit.dissent_summary}")
+            
+        if getattr(crit, "contradiction_flag", False):
+            md.append(f"\n> [!CAUTION] Cross-Evidence Contradiction")
+            md.append(f"> Theoretical claims in documentation conflict directly with repository artifacts. Score has been algorithmically penalized.")
             
         if crit.remediation:
             md.append(f"\n**Remediation Action:**")

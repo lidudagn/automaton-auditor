@@ -6,8 +6,43 @@ import logging
 logger = logging.getLogger(__name__)
 
 class ChiefJusticeNode:
-    """Collects opinions and synthesizes the Deterministic Chief Justice verdict."""
+    """Collects opinions and synthesizes the Deterministic Chief Justice verdict with Intelligence Amplification."""
     
+    def _detect_cross_evidence_contradiction(self, state: AgentState, criterion_id: str) -> tuple[bool, str]:
+        """
+        Phase 3 Intel: Compare doc claims vs repo reality.
+        Returns: (has_contradiction, explanation)
+        """
+        doc_claims_found = False
+        repo_evidence_missing = False
+        
+        # Scour doc evidence
+        if 'doc' in state.evidences:
+            for ev in state.evidences['doc']:
+                if (criterion_id.lower() in ev.goal.lower() or 
+                    any(word in ev.goal.lower() for word in criterion_id.lower().split('_'))):
+                    if ev.found and ev.confidence > 0.6:
+                        doc_claims_found = True
+                        
+        # Scour repo evidence
+        if 'repo' in state.evidences:
+            relevant_repo = False
+            for ev in state.evidences['repo']:
+                if (criterion_id.lower() in ev.goal.lower() or 
+                    any(word in ev.goal.lower() for word in criterion_id.lower().split('_'))):
+                    relevant_repo = True
+                    if not ev.found and ev.confidence > 0.6:
+                        repo_evidence_missing = True
+            
+            # If repo scanned but found *no* relevant files explicitly, missing is implicitly True
+            if doc_claims_found and not relevant_repo and len(state.evidences['repo']) > 0:
+                repo_evidence_missing = True
+                
+        if doc_claims_found and repo_evidence_missing:
+            return True, f"Documentation claims structural existence for '{criterion_id}', but static repository forensic tools explicitly could not find supporting code artifacts."
+            
+        return False, ""
+
     def __call__(self, state: AgentState) -> Dict[str, Any]:
         """Aggregate opinions via deterministic rules and produce final AuditReport."""
         opinions = state.opinions
@@ -29,6 +64,7 @@ class ChiefJusticeNode:
             
         final_criteria_results = []
         overall_score_sum = 0
+        global_contradictions = []
         
         for criterion_id, ops in by_criterion.items():
             logger.info(f"\n📋 Evaluating: {criterion_id}")
@@ -99,6 +135,17 @@ class ChiefJusticeNode:
                     logger.info("  🚨 RULE OF SECURITY: Prosecutor identified security flaw. Score capped at 3.")
                     final_score = min(final_score, 3)
                     remediation = "IMMEDIATE FIX REQUIRED: Security/safety vulnerabilities detected by Prosecutor must be patched."
+                    
+            # 5. Rule of Contradiction (Phase 3 Intelligence Amplification)
+            has_contradiction, contra_msg = self._detect_cross_evidence_contradiction(state, criterion_id)
+            if has_contradiction:
+                logger.info(f"  🧠 PHASE 3 INTELLIGENCE: CROSS-EVIDENCE CONTRADICTION DETECTED.")
+                logger.info(f"     -> {contra_msg}")
+                # Mathematically heavily penalize (confidence-weight pushes towards REPO evidence)
+                # Repo reality > Doc Theory. Pull score down by 2 points automatically.
+                final_score = max(1, final_score - 2)
+                remediation = f"RESOLVE CONTRADICTION: {contra_msg}"
+                global_contradictions.append(contra_msg)
 
             # Ensure score bounds
             final_score = max(1, min(5, final_score))
@@ -113,6 +160,7 @@ class ChiefJusticeNode:
                 defense_score=scores["Defense"],
                 tech_lead_score=scores["TechLead"],
                 dissent_summary=dissent_summary,
+                contradiction_flag=has_contradiction,
                 remediation=remediation
             ))
             
@@ -131,6 +179,7 @@ class ChiefJusticeNode:
             overall_score=overall_avg,
             criteria=final_criteria_results,
             remediation_plan="Review the 'Criteria Evaluation' scores of 3 or below and apply the suggested fixes.",
+            detected_contradictions=global_contradictions,
             evidence_summary=evidence_summary_dict
         )
         

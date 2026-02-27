@@ -118,6 +118,7 @@ class CriterionResult(BaseModel):
     defense_score: int = Field(ge=1, le=5)
     tech_lead_score: int = Field(ge=1, le=5)
     dissent_summary: Optional[str] = None
+    contradiction_flag: bool = Field(default=False, description="True if repo and doc evidence conflict")
     remediation: str = Field(default="", description="Specific improvement instructions")
 
 
@@ -130,6 +131,7 @@ class AuditReport(BaseModel):
     overall_score: float
     criteria: List[CriterionResult]
     remediation_plan: str
+    detected_contradictions: List[str] = Field(default_factory=list, description="List of high-level contradictions found")
     evidence_summary: Dict[str, int] = Field(description="Count of evidence by detector")
 
 
