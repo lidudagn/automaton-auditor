@@ -17,9 +17,11 @@ from src.nodes.detectives import (
 from src.nodes.judges import (
     ProsecutorNode,
     DefenseNode,
-    TechLeadNode,
-    OpinionAggregatorNode
+    TechLeadNode
 )
+from src.nodes.justice import ChiefJusticeNode
+import logging
+logger = logging.getLogger(__name__)
 
 
 def create_full_graph() -> StateGraph:
@@ -38,7 +40,7 @@ def create_full_graph() -> StateGraph:
       ├── Defense
       └── TechLead        (ALL PARALLEL)
            ↓
-    OpinionAggregator
+    ChiefJustice
            ↓
     END
     """
@@ -54,7 +56,7 @@ def create_full_graph() -> StateGraph:
     builder.add_node("prosecutor", ProsecutorNode())
     builder.add_node("defense", DefenseNode())
     builder.add_node("tech_lead", TechLeadNode())
-    builder.add_node("opinion_aggregator", OpinionAggregatorNode())
+    builder.add_node("chief_justice", ChiefJusticeNode())
     
     # Detective parallel fan-out
     builder.add_edge(START, "repo_investigator")
@@ -74,13 +76,13 @@ def create_full_graph() -> StateGraph:
 
     builder.add_conditional_edges("evidence_aggregator", should_judge)
     
-    # Judges to opinion aggregator (fan-in)
-    builder.add_edge("prosecutor", "opinion_aggregator")
-    builder.add_edge("defense", "opinion_aggregator")
-    builder.add_edge("tech_lead", "opinion_aggregator")
+    # Judges to chief justice (fan-in)
+    builder.add_edge("prosecutor", "chief_justice")
+    builder.add_edge("defense", "chief_justice")
+    builder.add_edge("tech_lead", "chief_justice")
     
-    # Aggregator to END
-    builder.add_edge("opinion_aggregator", END)
+    # Chief Justice to END
+    builder.add_edge("chief_justice", END)
     
     graph = builder.compile()
     return graph
@@ -123,24 +125,24 @@ def create_detective_graph() -> StateGraph:
 
 # For testing this file directly
 if __name__ == "__main__":
-    print("="*60)
-    print("🧪 TESTING GRAPH.PHASE 2".center(60))
-    print("="*60)
+    logger.info("="*60)
+    logger.info("🧪 TESTING GRAPH.PHASE 2".center(60))
+    logger.info("="*60)
     
     # Test detective graph
-    print("\n📊 Testing detective graph...")
+    logger.info("\n📊 Testing detective graph...")
     det_graph = create_detective_graph()
-    print(f"✅ Detective graph compiled!")
-    print(f"   Nodes: {list(det_graph.nodes.keys())}")
+    logger.info(f"✅ Detective graph compiled!")
+    logger.info(f"   Nodes: {list(det_graph.nodes.keys())}")
     
     # Test full graph
-    print("\n⚖️  Testing full graph with judges...")
+    logger.info("\n⚖️  Testing full graph with judges...")
     full_graph = create_full_graph()
-    print(f"✅ Full graph compiled!")
-    print(f"   Nodes: {list(full_graph.nodes.keys())}")
+    logger.info(f"✅ Full graph compiled!")
+    logger.info(f"   Nodes: {list(full_graph.nodes.keys())}")
     
     # Test with minimal state (Pydantic model)
-    print("\n🚀 Testing execution with Pydantic state...")
+    logger.info("\n🚀 Testing execution with Pydantic state...")
     
     from src.state import AgentState
     
@@ -152,15 +154,15 @@ if __name__ == "__main__":
     try:
         # Try detective graph first
         result = det_graph.invoke(test_state)
-        print(f"\n✅ Detective graph executed successfully!")
+        logger.info(f"\n✅ Detective graph executed successfully!")
         evidences = result.get("evidences", {})
-        print(f"   Evidence collected: {list(evidences.keys())}")
+        logger.info(f"   Evidence collected: {list(evidences.keys())}")
         
         total_evidence = sum(len(ev_list) for ev_list in evidences.values())
-        print(f"   Total evidence items: {total_evidence}")
+        logger.info(f"   Total evidence items: {total_evidence}")
         
         # Test full graph with judges
-        print(f"\n⚖️  Testing full graph with judges...")
+        logger.info(f"\n⚖️  Testing full graph with judges...")
         
         # Create fresh state for judges test
         judge_state = AgentState(
@@ -169,13 +171,13 @@ if __name__ == "__main__":
         )
         
         judge_result = full_graph.invoke(judge_state)
-        print(f"\n✅ Full graph executed successfully!")
+        logger.info(f"\n✅ Full graph executed successfully!")
         judge_evidences = judge_result.get("evidences", {})
-        print(f"   Evidence: {sum(len(ev_list) for ev_list in judge_evidences.values())} items")
-        print(f"   Opinions: {len(judge_result.get('opinions', []))}")
+        logger.info(f"   Evidence: {sum(len(ev_list) for ev_list in judge_evidences.values())} items")
+        logger.info(f"   Opinions: {len(judge_result.get('opinions', []))}")
         
     except Exception as e:
-        print(f"\n❌ Execution error: {str(e)}")
-        print(f"   Type: {type(e).__name__}")
+        logger.error(f"\n❌ Execution error: {str(e)}")
+        logger.info(f"   Type: {type(e).__name__}")
     
-    print("\n" + "="*60)
+    logger.info("\n" + "="*60)

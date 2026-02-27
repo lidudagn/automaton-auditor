@@ -6,6 +6,8 @@ from typing import List, Dict, Optional
 from pathlib import Path
 
 from src.state import Evidence
+import logging
+logger = logging.getLogger(__name__)
 
 # Try to import PDF libraries
 try:
@@ -101,7 +103,7 @@ def analyze_pdf_intelligently(pdf_path: str) -> Dict[str, any]:
             result["extracted_text"] = total_text
     
     except Exception as e:
-        print(f"⚠️ PDF analysis error: {e}")
+        logger.error(f"⚠️ PDF analysis error: {e}")
     
     return result
 

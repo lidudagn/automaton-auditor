@@ -19,7 +19,7 @@
 #         """
 #         repo_url = state.get("repo_url")
 #         if not repo_url:
-#             print("❌ RepoInvestigator: No repo URL provided")
+#             logger.error("❌ RepoInvestigator: No repo URL provided")
 #             error_evidence = Evidence(
 #                 goal="Repository Access",
 #                 found=False,
@@ -30,15 +30,15 @@
 #             )
 #             return {"evidences": {"repo": [error_evidence]}}
         
-#         print("🔍 RepoInvestigator: Starting analysis...")
+#         logger.info("🔍 RepoInvestigator: Starting analysis...")
         
 #         try:
 #             # Run all repo detective tools
 #             evidences = repo_tools.main_detective_work(repo_url)
-#             print(f"✅ RepoInvestigator: Found {len(evidences)} evidence items")
+#             logger.info(f"✅ RepoInvestigator: Found {len(evidences)} evidence items")
             
 #         except Exception as e:
-#             print(f"❌ RepoInvestigator error: {str(e)}")
+#             logger.error(f"❌ RepoInvestigator error: {str(e)}")
 #             evidences = [Evidence(
 #                 goal="Repository Analysis",
 #                 found=False,
@@ -64,7 +64,7 @@
 #         """
 #         pdf_path = state.get("pdf_path")
 #         if not pdf_path:
-#             print("❌ DocAnalyst: No PDF path provided")
+#             logger.error("❌ DocAnalyst: No PDF path provided")
 #             error_evidence = Evidence(
 #                 goal="Document Access",
 #                 found=False,
@@ -75,15 +75,15 @@
 #             )
 #             return {"evidences": {"doc": [error_evidence]}}
         
-#         print("📄 DocAnalyst: Starting PDF analysis...")
+#         logger.info("📄 DocAnalyst: Starting PDF analysis...")
         
 #         try:
 #             # Run PDF analysis tools
 #             evidences = doc_tools.analyze_pdf_report(pdf_path)
-#             print(f"✅ DocAnalyst: Found {len(evidences)} evidence items")
+#             logger.info(f"✅ DocAnalyst: Found {len(evidences)} evidence items")
             
 #         except Exception as e:
-#             print(f"❌ DocAnalyst error: {str(e)}")
+#             logger.error(f"❌ DocAnalyst error: {str(e)}")
 #             evidences = [Evidence(
 #                 goal="Document Analysis",
 #                 found=False,
@@ -100,11 +100,11 @@
 #     """Diagram detective - analyzes images in PDF."""
     
 #     def __call__(self, state: AgentState) -> Dict[str, Any]:
-#         print("👁️ VisionInspector: Analyzing PDF for diagrams...")
+#         logger.info("👁️ VisionInspector: Analyzing PDF for diagrams...")
 #         pdf_path = state.get("pdf_path")
         
 #         if not pdf_path or not os.path.exists(pdf_path):
-#             print("❌ VisionInspector: PDF not found")
+#             logger.error("❌ VisionInspector: PDF not found")
 #             evidence = Evidence(
 #                 goal="Diagram Analysis",
 #                 found=False,
@@ -126,14 +126,14 @@
 #                 evidences[0].goal = "Diagram Analysis (No diagrams found - expected)"
 #                 evidences[0].confidence = 0.8  # High confidence in correct detection
 #                 evidences[0].rationale = "PDF contains no embedded diagrams - this is normal"
-#                 print(f"ℹ️ VisionInspector: No diagrams detected (this is correct)")
+#                 logger.info(f"ℹ️ VisionInspector: No diagrams detected (this is correct)")
 #             else:
-#                 print(f"✅ VisionInspector: Found diagrams!")
+#                 logger.info(f"✅ VisionInspector: Found diagrams!")
             
 #             return {"evidences": {"vision": evidences}}
             
 #         except Exception as e:
-#             print(f"❌ VisionInspector error: {str(e)}")
+#             logger.error(f"❌ VisionInspector error: {str(e)}")
 #             evidence = Evidence(
 #                 goal="Diagram Analysis",
 #                 found=False,
@@ -155,9 +155,9 @@
 #         """
 #         evidences = state.get("evidences", {})
         
-#         print("\n" + "="*60)
-#         print("📊 EVIDENCE AGGREGATOR".center(60))
-#         print("="*60)
+#         logger.info("\n" + "="*60)
+#         logger.info("📊 EVIDENCE AGGREGATOR".center(60))
+#         logger.info("="*60)
         
 #         total = 0
 #         successful = 0
@@ -171,29 +171,29 @@
             
 #             # Format detector name for display
 #             det_name = detector.upper()
-#             print(f"\n  {det_name}: {count} evidence items")
+#             logger.info(f"\n  {det_name}: {count} evidence items")
             
 #             # Print sample evidence (first 2 items max)
 #             for i, ev in enumerate(ev_list[:2]):
 #                 status = "✅" if ev.found else "❌"
-#                 print(f"    {i+1}. {status} {ev.goal}")
-#                 print(f"       {ev.rationale[:60]}..." if len(ev.rationale) > 60 else f"       {ev.rationale}")
+#                 logger.info(f"    {i+1}. {status} {ev.goal}")
+#                 logger.info(f"       {ev.rationale[:60]}..." if len(ev.rationale) > 60 else f"       {ev.rationale}")
         
 #         # Summary statistics
-#         print("\n" + "-"*60)
-#         print(f"  📈 SUMMARY:")
-#         print(f"     Total evidence items: {total}")
-#         print(f"     Successful findings: {successful}")
-#         print(f"     Success rate: {successful/total*100:.1f}%" if total > 0 else "     No evidence collected")
-#         print("="*60 + "\n")
+#         logger.info("\n" + "-"*60)
+#         logger.info(f"  📈 SUMMARY:")
+#         logger.info(f"     Total evidence items: {total}")
+#         logger.info(f"     Successful findings: {successful}")
+#         logger.info(f"     Success rate: {successful/total*100:.1f}%" if total > 0 else "     No evidence collected")
+#         logger.info("="*60 + "\n")
         
 #         # Return empty - state already updated via reducers
 #         return {}
 
 
 # if __name__ == "__main__":
-#     print("\n🧪 Testing detective nodes...")
-#     print("="*40)
+#     logger.info("\n🧪 Testing detective nodes...")
+#     logger.info("="*40)
     
 #     # Create test state
 #     test_state = {
@@ -205,28 +205,28 @@
 #         "final_report": None
 #     }
     
-#     print("\n🔍 Testing RepoInvestigator...")
+#     logger.info("\n🔍 Testing RepoInvestigator...")
 #     repo_node = RepoInvestigatorNode()
 #     repo_result = repo_node(test_state)
 #     repo_ev_count = len(repo_result.get("evidences", {}).get("repo", []))
-#     print(f"   → Found {repo_ev_count} evidence items")
+#     logger.info(f"   → Found {repo_ev_count} evidence items")
     
-#     print("\n📄 Testing DocAnalyst...")
+#     logger.info("\n📄 Testing DocAnalyst...")
 #     doc_node = DocAnalystNode()
 #     doc_result = doc_node(test_state)
 #     doc_ev_count = len(doc_result.get("evidences", {}).get("doc", []))
-#     print(f"   → Found {doc_ev_count} evidence items")
+#     logger.info(f"   → Found {doc_ev_count} evidence items")
     
-#     print("\n👁️ Testing VisionInspector...")
+#     logger.info("\n👁️ Testing VisionInspector...")
 #     vision_node = VisionInspectorNode()
 #     vision_result = vision_node(test_state)
 #     vision_ev_count = len(vision_result.get("evidences", {}).get("vision", []))
-#     print(f"   → Found {vision_ev_count} evidence items (empty = correct!)")
+#     logger.info(f"   → Found {vision_ev_count} evidence items (empty = correct!)")
     
-#     print("\n✅ All detective nodes ready!")
+#     logger.info("\n✅ All detective nodes ready!")
     
 #     # Test aggregator with combined results
-#     print("\n📊 Testing EvidenceAggregator...")
+#     logger.info("\n📊 Testing EvidenceAggregator...")
     
 #     # Combine results into one state
 #     combined_state = {
@@ -249,10 +249,13 @@
 """Detective nodes for evidence collection - Phase 2 with Pydantic state."""
 
 import os
+import logging
 from typing import Dict, Any
 
 from src.state import AgentState, Evidence
 from src.tools import repo_tools, doc_tools, vision_tools
+
+logger = logging.getLogger(__name__)
 
 
 class RepoInvestigatorNode:
@@ -269,7 +272,7 @@ class RepoInvestigatorNode:
         evidences_list = []  # ← Collect evidence here
         
         if not repo_url:
-            print("❌ RepoInvestigator: No repo URL provided")
+            logger.error("RepoInvestigator: No repo URL provided")
             evidences_list.append(Evidence(
                 goal="Repository Access",
                 found=False,
@@ -281,16 +284,17 @@ class RepoInvestigatorNode:
             # Return the evidence to be merged
             return {"evidences": {"repo": evidences_list}}
         
-        print("🔍 RepoInvestigator: Starting analysis...")
+        logger.info("🔍 RepoInvestigator: Starting analysis...")
         
         try:
+            full_history = state.metadata.get("full_history", False)
             # Run all repo detective tools
-            evidences = repo_tools.main_detective_work(repo_url)
+            evidences = repo_tools.main_detective_work(repo_url, full_history=full_history)
             evidences_list.extend(evidences)
-            print(f"✅ RepoInvestigator: Collected {len(evidences_list)} evidence items")
+            logger.info("RepoInvestigator: Collected %d evidence items", len(evidences_list))
             
         except Exception as e:
-            print(f"❌ RepoInvestigator error: {str(e)}")
+            logger.error("RepoInvestigator error: %s", str(e), exc_info=True)
             evidences_list.append(Evidence(
                 goal="Repository Analysis",
                 found=False,
@@ -317,7 +321,7 @@ class DocAnalystNode:
         evidences_list = []
         
         if not pdf_path:
-            print("❌ DocAnalyst: No PDF path provided")
+            logger.error("DocAnalyst: No PDF path provided")
             evidences_list.append(Evidence(
                 goal="Document Access",
                 found=False,
@@ -328,16 +332,16 @@ class DocAnalystNode:
             ))
             return {"evidences": {"doc": evidences_list}}
         
-        print("📄 DocAnalyst: Starting PDF analysis...")
+        logger.info("📄 DocAnalyst: Starting PDF analysis...")
         
         try:
             # Run PDF analysis tools
             evidences = doc_tools.analyze_pdf_report(pdf_path)
             evidences_list.extend(evidences)
-            print(f"✅ DocAnalyst: Added {len(evidences)} evidence items")
+            logger.info("DocAnalyst: Added %d evidence items", len(evidences))
             
         except Exception as e:
-            print(f"❌ DocAnalyst error: {str(e)}")
+            logger.error("DocAnalyst error: %s", str(e), exc_info=True)
             evidences_list.append(Evidence(
                 goal="Document Analysis",
                 found=False,
@@ -365,7 +369,7 @@ class VisionInspectorNode:
         evidences_list = []
         
         if not pdf_path or not os.path.exists(pdf_path):
-            print("❌ VisionInspector: PDF not found")
+            logger.error("VisionInspector: PDF not found")
             evidences_list.append(Evidence(
                 goal="Diagram Analysis",
                 found=False,
@@ -376,7 +380,7 @@ class VisionInspectorNode:
             ))
             return {"evidences": {"vision": evidences_list}}
         
-        print("👁️ VisionInspector: Analyzing PDF for diagrams...")
+        logger.info("👁️ VisionInspector: Analyzing PDF for diagrams...")
         
         try:
             evidences = vision_tools.detect_diagrams_in_pdf(pdf_path)
@@ -387,14 +391,14 @@ class VisionInspectorNode:
                 evidences[0].goal = "Diagram Analysis (No diagrams found - expected)"
                 evidences[0].confidence = 0.8
                 evidences[0].rationale = "PDF contains no embedded diagrams - this is normal"
-                print(f"ℹ️ VisionInspector: No diagrams detected (this is correct)")
+                logger.info("VisionInspector: No diagrams detected (this is correct)")
             else:
-                print(f"✅ VisionInspector: Found diagrams!")
+                logger.info("VisionInspector: Found diagrams!")
             
             evidences_list.extend(evidences)
             
         except Exception as e:
-            print(f"❌ VisionInspector error: {str(e)}")
+            logger.error("VisionInspector error: %s", str(e), exc_info=True)
             evidences_list.append(Evidence(
                 goal="Diagram Analysis",
                 found=False,
@@ -417,13 +421,8 @@ class EvidenceAggregatorNode:
         Args: state - Current agent state with all evidence
         Returns: Empty dict
         """
-        print("\n" + "="*60)
-        print("📊 EVIDENCE AGGREGATOR".center(60))
-        print("="*60)
-        
         if not state.evidences:
-            print("\n  No evidence collected")
-            print("\n" + "="*60)
+            logger.info("No evidence collected")
             return {}
         
         total = 0
@@ -435,30 +434,24 @@ class EvidenceAggregatorNode:
             successful += sum(1 for ev in ev_list if ev.found)
             
             det_name = detector.upper()
-            print(f"\n  {det_name}: {count} evidence items")
+            logger.info("%s: %d evidence items", det_name, count)
             
             # Print sample evidence (first 2 items)
             for i, ev in enumerate(ev_list[:2]):
-                status = "✅" if ev.found else "❌"
-                print(f"    {i+1}. {status} {ev.goal}")
-                rationale_short = ev.rationale[:60] + "..." if len(ev.rationale) > 60 else ev.rationale
-                print(f"       {rationale_short}")
+                status = "PASS" if ev.found else "FAIL"
+                logger.debug("   %d. [%s] %s - %s", i+1, status, ev.goal, ev.rationale[:60])
         
         # Summary statistics using state helper methods
-        print("\n" + "-"*60)
-        print(f"  📈 SUMMARY:")
-        print(f"     Total evidence items: {state.get_evidence_count()}")
-        print(f"     Successful findings: {state.get_successful_evidence()}")
-        print(f"     Success rate: {state.get_success_rate():.1f}%")
-        print("="*60 + "\n")
+        logger.info("SUMMARY: Total evidence items: %d, Successful findings: %d, Success rate: %.1f%%",
+                    state.get_evidence_count(), state.get_successful_evidence(), state.get_success_rate())
         
         return {}
     
 
     
 if __name__ == "__main__":
-    print("\n🧪 Testing detective nodes with Pydantic state...")
-    print("="*60)
+    logger.info("\n🧪 Testing detective nodes with Pydantic state...")
+    logger.info("="*60)
     
     # Create test state using Pydantic model
     from src.state import AgentState
@@ -468,30 +461,30 @@ if __name__ == "__main__":
         pdf_path="test_report.pdf"
     )
     
-    print(f"\n🔍 Testing RepoInvestigator...")
-    print(f"   State type: {type(test_state).__name__}")  # Should show "AgentState"
+    logger.info(f"\n🔍 Testing RepoInvestigator...")
+    logger.info(f"   State type: {type(test_state).__name__}")  # Should show "AgentState"
     repo_node = RepoInvestigatorNode()
     repo_node(test_state)
     repo_count = len(test_state.evidences.get("repo", []))
-    print(f"   → Added {repo_count} repo evidence items")
+    logger.info(f"   → Added {repo_count} repo evidence items")
     
-    print(f"\n📄 Testing DocAnalyst...")
+    logger.info(f"\n📄 Testing DocAnalyst...")
     doc_node = DocAnalystNode()
     doc_node(test_state)
     doc_count = len(test_state.evidences.get("doc", []))
-    print(f"   → Added {doc_count} doc evidence items")
+    logger.info(f"   → Added {doc_count} doc evidence items")
     
-    print(f"\n👁️ Testing VisionInspector...")
+    logger.info(f"\n👁️ Testing VisionInspector...")
     vision_node = VisionInspectorNode()
     vision_node(test_state)
     vision_count = len(test_state.evidences.get("vision", []))
-    print(f"   → Added {vision_count} vision evidence items")
+    logger.info(f"   → Added {vision_count} vision evidence items")
     
-    print(f"\n📊 Testing EvidenceAggregator...")
+    logger.info(f"\n📊 Testing EvidenceAggregator...")
     agg_node = EvidenceAggregatorNode()
     agg_node(test_state)
     
-    print(f"\n✅ Final Results:")
-    print(f"   Total evidence: {test_state.get_evidence_count()}")
-    print(f"   Success rate: {test_state.get_success_rate():.1f}%")
-    print("="*60)
+    logger.info(f"\n✅ Final Results:")
+    logger.info(f"   Total evidence: {test_state.get_evidence_count()}")
+    logger.info(f"   Success rate: {test_state.get_success_rate():.1f}%")
+    logger.info("="*60)

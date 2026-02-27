@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 
 from src.graph import create_full_graph
 from src.state import AgentState
+import logging
+logger = logging.getLogger(__name__)
 
 # Load environment variables (API keys if needed)
 load_dotenv()
@@ -14,30 +16,35 @@ load_dotenv()
 
 def main():
     """Run the detective graph."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
     parser = argparse.ArgumentParser(description="Automaton Auditor - Final Audit")
     parser.add_argument("--repo", required=True, help="GitHub repository URL")
     parser.add_argument("--pdf", required=True, help="Path to PDF report")
     parser.add_argument("--md-output", default="final_audit_report.md", help="Output Markdown report path")
     parser.add_argument("--json-output", default="evidence_output.json", help="Output JSON evidence path")
+    parser.add_argument("--full-history", action="store_true", help="Clone full git history (slower but deeper)")
     
     args = parser.parse_args()
     
-    print("="*60)
-    print("🔍 AUTOMATON AUDITOR - FULL PIPELINE")
-    print("="*60)
-    print(f"Repository: {args.repo}")
-    print(f"PDF Report: {args.pdf}")
-    print(f"JSON Output: {args.json_output}")
-    print(f"MD Output:   {args.md_output}")
-    print("="*60)
+    logger.info("="*60)
+    logger.info("🔍 AUTOMATON AUDITOR - FULL PIPELINE")
+    logger.info("="*60)
+    logger.info(f"Repository: {args.repo}")
+    logger.info(f"PDF Report: {args.pdf}")
+    logger.info(f"JSON Output: {args.json_output}")
+    logger.info(f"MD Output:   {args.md_output}")
+    logger.info("="*60)
     
     # Check if PDF exists
     if not os.path.exists(args.pdf):
-        print(f"❌ ERROR: PDF file not found: {args.pdf}")
+        logger.error(f"❌ ERROR: PDF file not found: {args.pdf}")
         return
     
     # Create the graph
-    print("\n🚀 Initializing full graph...")
+    logger.info("\n🚀 Initializing full graph...")
     graph = create_full_graph()
     
     # Generate generic rubric for the full audit
@@ -55,22 +62,23 @@ def main():
     initial_state = AgentState(
         repo_url=args.repo,
         pdf_path=args.pdf,
-        rubric_dimensions=rubric
+        rubric_dimensions=rubric,
+        metadata={"full_history": args.full_history}
     )
     
     # Run the graph
-    print("\n🔍 Starting parallel detectives and judges...")
-    print("   (Executing full phase 2 pipeline)")
-    print("-" * 40)
+    logger.info("\n🔍 Starting parallel detectives and judges...")
+    logger.info("   (Executing full phase 2 pipeline)")
+    logger.info("-" * 40)
     
     result = graph.invoke(initial_state)
     
-    print("-" * 40)
-    print("\n✅ Audit complete!")
+    logger.info("-" * 40)
+    logger.info("\n✅ Audit complete!")
     
     # Display results summary
-    print("\n📊 EVIDENCE COLLECTED SUMMARY:")
-    print("="*40)
+    logger.info("\n📊 EVIDENCE COLLECTED SUMMARY:")
+    logger.info("="*40)
     
     evidences_dict = result.get("evidences", {})
     
@@ -78,16 +86,16 @@ def main():
     for detector, evidences in evidences_dict.items():
         count = len(evidences)
         total_evidence += count
-        print(f"\n{detector.upper()}: {count} items")
+        logger.info(f"\n{detector.upper()}: {count} items")
         
         # Show first few items as sample
         for i, ev in enumerate(evidences[:2]):  # Show first 2 only
             status = "✅" if ev.found else "❌"
-            print(f"  {status} {ev.goal}")
+            logger.info(f"  {status} {ev.goal}")
     
-    print("\n" + "="*40)
-    print(f"TOTAL EVIDENCE ITEMS: {total_evidence}")
-    print("="*40)
+    logger.info("\n" + "="*40)
+    logger.info(f"TOTAL EVIDENCE ITEMS: {total_evidence}")
+    logger.info("="*40)
     
     # Save JSON Evidence
     with open(args.json_output, 'w') as f:
@@ -105,7 +113,7 @@ def main():
         }
         json.dump(output_data, f, indent=2)
     
-    print(f"\n💾 Evidence saved to JSON: {args.json_output}")
+    logger.info(f"\n💾 Evidence saved to JSON: {args.json_output}")
     
     # Generate and Save Markdown Report
     final_report = result.get("final_report")
@@ -114,11 +122,11 @@ def main():
         md_content = generate_markdown_report(final_report)
         with open(args.md_output, "w") as f:
             f.write(md_content)
-        print(f"📝 Final Markdown Report saved to: {args.md_output}")
+        logger.info(f"📝 Final Markdown Report saved to: {args.md_output}")
     else:
-        print("⚠️ No final report was generated. Graphs may have ended early due to lack of evidence.")
+        logger.warning("⚠️ No final report was generated. Graphs may have ended early due to lack of evidence.")
 
-    print("\n✨ Phase 2 Completion Submission Ready! ✨")
+    logger.info("\n✨ Phase 2 Completion Submission Ready! ✨")
 
 
 if __name__ == "__main__":

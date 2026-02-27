@@ -6,6 +6,8 @@ from typing import List, Dict, Optional, Any
 import hashlib
 
 from src.state import Evidence
+import logging
+logger = logging.getLogger(__name__)
 
 # Try to import PDF image extraction
 try:
@@ -14,21 +16,21 @@ try:
     PYPDF_AVAILABLE = True
 except ImportError:
     PYPDF_AVAILABLE = False
-    print("⚠️ pypdf not fully available")
+    logger.warning("⚠️ pypdf not fully available")
 
 try:
     import fitz  # PyMuPDF - better for images
     PYMUPDF_AVAILABLE = True
 except ImportError:
     PYMUPDF_AVAILABLE = False
-    print("⚠️ fitz/PyMuPDF not installed. Run: uv add PyMuPDF")
+    logger.warning("⚠️ fitz/PyMuPDF not installed. Run: uv add PyMuPDF")
 
 try:
     from PIL import Image
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
-    print("⚠️ PIL not installed. Run: uv add pillow")
+    logger.warning("⚠️ PIL not installed. Run: uv add pillow")
 
 
 def extract_images_with_pymupdf(pdf_path: str, output_dir: str) -> List[str]:
@@ -68,7 +70,7 @@ def extract_images_with_pymupdf(pdf_path: str, output_dir: str) -> List[str]:
         return image_paths
     
     except Exception as e:
-        print(f"⚠️ PyMuPDF extraction error: {e}")
+        logger.error(f"⚠️ PyMuPDF extraction error: {e}")
         return []
 
 
@@ -99,7 +101,7 @@ def extract_images_with_pypdf(pdf_path: str, output_dir: str) -> List[str]:
         return image_paths
     
     except Exception as e:
-        print(f"⚠️ PyPDF image detection error: {e}")
+        logger.error(f"⚠️ PyPDF image detection error: {e}")
         return []
 
 
@@ -243,9 +245,9 @@ if __name__ == "__main__":
     if os.path.exists(test_pdf):
         results = detect_diagrams_in_pdf(test_pdf)
         for ev in results:
-            print(f"\n{ev.goal}: {'✅' if ev.found else '❌'}")
-            print(f"  {ev.rationale}")
+            logger.error(f"\n{ev.goal}: {'✅' if ev.found else '❌'}")
+            logger.info(f"  {ev.rationale}")
             if ev.content:
-                print(f"  Details:\n{ev.content}")
+                logger.info(f"  Details:\n{ev.content}")
     else:
-        print("No test PDF provided")
+        logger.info("No test PDF provided")
