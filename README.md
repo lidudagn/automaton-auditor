@@ -45,12 +45,17 @@ Populate the `.env` file with the following keys:
 ## Usage
 
 ```bash
-python -m src.main --repo <GITHUB_URL> --pdf <PDF_PATH> --output results.json
+python -m src.main --repo <GITHUB_URL> --pdf <PDF_PATH> [--full-history]
 ```
+
+**Flags:**
+- `--repo`: Target GitHub repository URL
+- `--pdf`: Path to the PDF audit report to analyze
+- `--full-history`: (Optional) Perform deep forensic git clone with commit history (slower but enables contributor frequency analysis)
 
 Example:
 ```bash
-python -m src.main --repo https://github.com/langchain-ai/langgraph --pdf test_report.pdf --output evidence.json
+python -m src.main --repo https://github.com/langchain-ai/langgraph --pdf test_report.pdf --full-history
 ```
 
 ## Project Structure
@@ -69,9 +74,35 @@ src/
     └── vision_tools.py  # Diagram detection
 ```
 
+## Architecture Diagram
+
+```mermaid
+graph TD
+    A[Initial State] --> B(RepoInvestigatorNode)
+    A --> C(DocAnalystNode)
+    A --> D(VisionInspectorNode)
+    
+    B --> E{merge_dicts reducer}
+    C --> E
+    D --> E
+    
+    E --> F(EvidenceAggregatorNode)
+    
+    F --> G(ProsecutorNode)
+    F --> H(DefenseNode)
+    F --> I(TechLeadNode)
+    
+    G --> J{operator.add reducer}
+    H --> J
+    I --> J
+    
+    J --> K(ChiefJusticeNode)
+    K --> L[AuditReport Output]
+```
+
 ## Results (Interim)
 
-- ✅ **11 evidence items collected**
+- ✅ **Evidence Collection**: Strict Pydantic models with attribution
 - ✅ **90.9% success rate**
 - ✅ **All detectives working in parallel**
 - ✅ **Neutral handling of missing diagrams**
