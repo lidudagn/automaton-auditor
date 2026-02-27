@@ -3,7 +3,7 @@
 from typing import Dict, List, Any
 from datetime import datetime
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.state import AgentState, JudicialOpinion, Evidence
@@ -21,7 +21,7 @@ class BaseJudgeNode:
     
     def __init__(self, judge_name: str, system_prompt: str):
         self.judge_name = judge_name
-        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        self.llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
         
         # Use structured output to enforce JudicialOpinion schema
         self.structured_llm = self.llm.with_structured_output(JudicialOpinion)

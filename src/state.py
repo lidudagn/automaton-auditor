@@ -114,6 +114,8 @@ class CriterionResult(BaseModel):
     dimension_id: str
     dimension_name: str
     final_score: int = Field(ge=1, le=5)
+    base_score: int = Field(default=0, description="Score before contradiction penalties")
+    penalty_applied: int = Field(default=0, description="Penalty deducted due to contradictions")
     prosecutor_score: int = Field(ge=1, le=5)
     defense_score: int = Field(ge=1, le=5)
     tech_lead_score: int = Field(ge=1, le=5)

@@ -1,0 +1,8 @@
+[
+    {
+        "id": "tiangolo-fastapi",
+        "repo_url": "https://github.com/tiangolo/fastapi",
+        "pdf_path": "test_report.pdf",
+        "expected_tier": "High"
+    }
+]

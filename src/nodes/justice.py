@@ -136,6 +136,10 @@ class ChiefJusticeNode:
                     final_score = min(final_score, 3)
                     remediation = "IMMEDIATE FIX REQUIRED: Security/safety vulnerabilities detected by Prosecutor must be patched."
                     
+            # Track base_score before contradictions
+            base_score = final_score
+            penalty_applied = 0
+            
             # 5. Rule of Contradiction (Phase 3 Intelligence Amplification)
             has_contradiction, contra_msg = self._detect_cross_evidence_contradiction(state, criterion_id)
             if has_contradiction:
@@ -144,6 +148,7 @@ class ChiefJusticeNode:
                 # Mathematically heavily penalize (confidence-weight pushes towards REPO evidence)
                 # Repo reality > Doc Theory. Pull score down by 2 points automatically.
                 final_score = max(1, final_score - 2)
+                penalty_applied = base_score - final_score
                 remediation = f"RESOLVE CONTRADICTION: {contra_msg}"
                 global_contradictions.append(contra_msg)
 
@@ -156,6 +161,8 @@ class ChiefJusticeNode:
                 dimension_id=criterion_id,
                 dimension_name=criterion_id.replace("_", " ").title(),
                 final_score=final_score,
+                base_score=base_score,
+                penalty_applied=penalty_applied,
                 prosecutor_score=scores["Prosecutor"],
                 defense_score=scores["Defense"],
                 tech_lead_score=scores["TechLead"],
