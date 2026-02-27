@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import List, Dict, Optional, Union
 
 from src.state import Evidence
+import logging
+logger = logging.getLogger(__name__)
 
 
 def clone_repository_sandboxed(repo_url: str, full_history: bool = False) -> Union[str, None]:
@@ -23,7 +25,7 @@ def clone_repository_sandboxed(repo_url: str, full_history: bool = False) -> Uni
     temp_dir = tempfile.mkdtemp(prefix="repo_audit_")
     
     try:
-        print(f"📥 Cloning {repo_url}...")
+        logger.info(f"📥 Cloning {repo_url}...")
         
         # Use --depth 1 for speed, or full history if requested
         clone_cmd = ["git", "clone"]
@@ -35,25 +37,25 @@ def clone_repository_sandboxed(repo_url: str, full_history: bool = False) -> Uni
             clone_cmd,
             capture_output=True,
             text=True,
-            timeout=300
+            timeout=1200  # Increased for massive repositories
         )
         
         if result.returncode != 0:
             error_msg = result.stderr[:200] if result.stderr else "Unknown error"
-            print(f"❌ Clone failed: {error_msg}")
+            logger.error(f"❌ Clone failed: {error_msg}")
             shutil.rmtree(temp_dir, ignore_errors=True)
             return None
         
         # Add note about history in the rationale later
         if full_history:
-            print(f"✅ Cloned successfully with FULL history to {temp_dir}")
+            logger.info(f"✅ Cloned successfully with FULL history to {temp_dir}")
         else:
-            print(f"✅ Cloned successfully (latest commit only) to {temp_dir}")
+            logger.info(f"✅ Cloned successfully (latest commit only) to {temp_dir}")
             
         return temp_dir
         
     except Exception as e:
-        print(f"❌ Clone failed: {str(e)}")
+        logger.error(f"❌ Clone failed: {str(e)}")
         shutil.rmtree(temp_dir, ignore_errors=True)
         return None
 
@@ -85,7 +87,7 @@ def get_git_history(repo_path: str) -> List[Dict[str, str]]:
         
         return commits
     except Exception as e:
-        print(f"⚠️ Error getting git history: {e}")
+        logger.error(f"⚠️ Error getting git history: {e}")
         return []
 
 
@@ -111,7 +113,7 @@ def find_python_files(repo_path: str) -> List[str]:
                     rel_path = os.path.relpath(full_path, repo_path)
                     py_files.append(rel_path)
     except Exception as e:
-        print(f"⚠️ Error finding Python files: {e}")
+        logger.error(f"⚠️ Error finding Python files: {e}")
     
     return py_files
 
@@ -242,7 +244,196 @@ def analyze_repo_structure(repo_path: str) -> Evidence:
         )
 
 
-def main_detective_work(repo_url: str) -> List[Evidence]:
+def get_contributor_stats(repo_path: str) -> Evidence:
+    """Analyze contributor frequency using git shortlog."""
+    try:
+        result = subprocess.run(
+            ["git", "shortlog", "-sn", "--all"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode != 0:
+            return Evidence(
+                goal="Contributor Analysis",
+                found=False,
+                content=result.stderr,
+                location="git shortlog",
+                rationale="Failed to get contributor stats",
+                confidence=0.0
+            )
+        
+        lines = [line.strip() for line in result.stdout.split('\n') if line.strip()]
+        if not lines:
+            return Evidence(
+                goal="Contributor Analysis",
+                found=False,
+                content=None,
+                location="git shortlog",
+                rationale="No contributors found or shallow clone limited history",
+                confidence=0.5
+            )
+            
+        top_contributors = lines[:5]
+        return Evidence(
+            goal="Contributor Analysis",
+            found=True,
+            content="\n".join(top_contributors),
+            location="git shortlog",
+            rationale=f"Found {len(lines)} contributors. Top ones: {', '.join(top_contributors[:3])}",
+            confidence=0.9
+        )
+    except Exception as e:
+        return Evidence(
+            goal="Contributor Analysis",
+            found=False,
+            content=str(e),
+            location="git shortlog",
+            rationale="Error running contributor analysis",
+            confidence=0.0
+        )
+
+
+def detect_license(repo_path: str) -> Evidence:
+    """Detect presence of open-source license files."""
+    license_files = ["LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING"]
+    found_files = []
+    
+    for f in license_files:
+        if check_file_exists(repo_path, f):
+            found_files.append(f)
+            
+    if found_files:
+        return Evidence(
+            goal="License Detection",
+            found=True,
+            content=found_files[0],
+            location=found_files[0],
+            rationale=f"Found license file: {found_files[0]}",
+            confidence=0.9
+        )
+    return Evidence(
+        goal="License Detection",
+        found=False,
+        content=None,
+        location="repository root",
+        rationale="No standard license file found",
+        confidence=0.8
+    )
+
+
+def detect_ci_presence(repo_path: str) -> Evidence:
+    """Detect standard CI/CD configuration files."""
+    ci_paths = [".github/workflows", ".gitlab-ci.yml", "Jenkinsfile", ".travis.yml", ".circleci/config.yml"]
+    found_ci = []
+    
+    for path in ci_paths:
+        full_path = Path(repo_path) / path
+        if full_path.exists():
+            found_ci.append(path)
+            
+    if found_ci:
+        return Evidence(
+            goal="CI/CD Infrastructure",
+            found=True,
+            content=", ".join(found_ci),
+            location=", ".join(found_ci),
+            rationale=f"Found CI/CD configurations: {', '.join(found_ci)}",
+            confidence=0.9
+        )
+    return Evidence(
+        goal="CI/CD Infrastructure",
+        found=False,
+        content=None,
+        location="repository root",
+        rationale="No standard CI/CD configuration files found",
+        confidence=0.8
+    )
+
+
+def detect_tests_folder(repo_path: str) -> Evidence:
+    """Detect presence of tests folder or test files."""
+    test_dirs = ["tests", "test", "spec", "tests/"]
+    for td in test_dirs:
+        if (Path(repo_path) / td).is_dir():
+            return Evidence(
+                goal="Test Infrastructure",
+                found=True,
+                content=td,
+                location=td,
+                rationale=f"Found tests directory: {td}",
+                confidence=0.9
+            )
+            
+    # Maybe check for test_*.py
+    py_files = find_python_files(repo_path)
+    test_files = [f for f in py_files if f.startswith("test_") or f.endswith("_test.py") or "/test_" in f]
+    
+    if test_files:
+        return Evidence(
+            goal="Test Infrastructure",
+            found=True,
+            content="\n".join(test_files[:5]),
+            location="various",
+            rationale=f"Found {len(test_files)} test files",
+            confidence=0.85
+        )
+        
+    return Evidence(
+        goal="Test Infrastructure",
+        found=False,
+        content=None,
+        location="repository",
+        rationale="No standard tests directory or test files found",
+        confidence=0.8
+    )
+
+
+def scan_secrets(repo_path: str) -> Evidence:
+    """Scan python files for basic leaked secrets patterns."""
+    import re
+    secret_patterns = [
+        r"(?i)api_key\s*=\s*['\"][a-zA-Z0-9_\-]{16,}['\"]",
+        r"(?i)password\s*=\s*['\"][a-zA-Z0-9_\-!@#$%]{8,}['\"]",
+        r"(?i)secret\s*=\s*['\"][a-zA-Z0-9_\-]{16,}['\"]",
+        r"AKIA[0-9A-Z]{16}"  # AWS key pattern
+    ]
+    py_files = find_python_files(repo_path)
+    found_secrets = []
+    
+    for f in py_files:
+        try:
+            with open(Path(repo_path) / f, 'r', encoding='utf-8', errors='ignore') as file:
+                content = file.read()
+                for pattern in secret_patterns:
+                    if re.search(pattern, content):
+                        found_secrets.append(f)
+                        break
+        except Exception:
+            pass
+            
+    if found_secrets:
+        return Evidence(
+            goal="Secrets Scanning",
+            found=True,
+            content="\n".join(found_secrets[:3]),
+            location="various",
+            rationale=f"Potential leaked secrets found in {len(found_secrets)} files (e.g., {found_secrets[0]})",
+            confidence=0.8
+        )
+        
+    return Evidence(
+        goal="Secrets Scanning",
+        found=False,
+        content=None,
+        location="repository",
+        rationale="No obvious hardcoded secrets detected in Python files",
+        confidence=0.7
+    )
+
+
+def main_detective_work(repo_url: str, full_history: bool = False) -> List[Evidence]:
     """
     Run all repo detective tools and return evidence list.
     
@@ -251,8 +442,8 @@ def main_detective_work(repo_url: str) -> List[Evidence]:
     evidences = []
     repo_path = None
     
-    # STEP 1: Clone the repository (using shallow clone for speed)
-    repo_path = clone_repository_sandboxed(repo_url, full_history=False)
+    # STEP 1: Clone the repository
+    repo_path = clone_repository_sandboxed(repo_url, full_history=full_history)
     
     # STEP 2: Handle clone failure
     if not repo_path:
@@ -344,6 +535,13 @@ def main_detective_work(repo_url: str) -> List[Evidence]:
                 confidence=0.9
             )
             evidences.append(py_evidence)
+            
+        # STEP 9: Advanced Forensics
+        evidences.append(get_contributor_stats(repo_path))
+        evidences.append(detect_license(repo_path))
+        evidences.append(detect_ci_presence(repo_path))
+        evidences.append(detect_tests_folder(repo_path))
+        evidences.append(scan_secrets(repo_path))
         
     except Exception as e:
         # Catch any unexpected errors during analysis
@@ -362,9 +560,9 @@ def main_detective_work(repo_url: str) -> List[Evidence]:
         if repo_path and os.path.exists(repo_path):
             try:
                 shutil.rmtree(repo_path, ignore_errors=True)
-                print(f"🧹 Cleaned up {repo_path}")
+                logger.info(f"🧹 Cleaned up {repo_path}")
             except Exception as e:
-                print(f"⚠️ Cleanup warning: {e}")
+                logger.warning(f"⚠️ Cleanup warning: {e}")
     
     return evidences
 
@@ -373,11 +571,11 @@ def main_detective_work(repo_url: str) -> List[Evidence]:
 if __name__ == "__main__":
     # Test with a public repo
     test_url = "https://github.com/langchain-ai/langgraph"
-    print(f"\n🔍 Testing repo_tools with: {test_url}\n")
+    logger.info(f"\n🔍 Testing repo_tools with: {test_url}\n")
     
     results = main_detective_work(test_url)
     
-    print("\n📊 RESULTS:")
+    logger.info("\n📊 RESULTS:")
     for ev in results:
         status = "✅" if ev.found else "❌"
-        print(f"{status} {ev.goal}: {ev.rationale} (conf: {ev.confidence})")
+        logger.info(f"{status} {ev.goal}: {ev.rationale} (conf: {ev.confidence})")
