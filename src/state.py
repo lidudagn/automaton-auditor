@@ -63,20 +63,20 @@
 
 """State definitions for Automaton Auditor - Phase 2 (Pydantic)."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Dict, Optional, Any, Literal, Annotated
 from datetime import datetime
 import operator
 
 def merge_dicts(left: Dict[str, List[Any]], right: Dict[str, List[Any]]) -> Dict[str, List[Any]]:
     """Merge evidence dictionaries by concatenating lists for matching keys."""
-    if not left:
-        return right.copy()
-    if not right:
-        return left.copy()
-    
-    res = left.copy()
-    for k, v in right.items():
+    res = left.copy() if left else {}
+    for k, v in (right or {}).items():
+        # Enforce detector attribution
+        for ev in v:
+            if hasattr(ev, 'detector'):
+                ev.detector = k
+                
         if k in res:
             res[k] = res[k] + v
         else:
@@ -153,11 +153,10 @@ class AgentState(BaseModel):
     # Metadata
     metadata: Dict[str, Any] = Field(default_factory=dict)
     
-    class Config:
-        arbitrary_types_allowed = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders={datetime: lambda v: v.isoformat()}
+    )
     
     def add_evidence(self, detector: str, evidence: Evidence) -> None:
         """Add evidence to the state."""
