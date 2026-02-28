@@ -28,6 +28,11 @@ Thumbs.db
 # Project specific
 temp_repos/
 *.log
+evidence_output.json
+final_audit_report.md
+*.pdf
+roo_code_audit_report.md
+roo_code_evidence.json
 
 # Build
 dist/
