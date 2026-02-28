@@ -1,0 +1,5 @@
+target_id,expected_tier,dimension_id,base_score,penalty_applied,final_score,contradiction_flag
+langchain-ai-langgraph,High,graph_orchestration_architecture,5,0,5,False
+langchain-ai-langgraph,High,state_management_rigor,5,0,5,False
+langchain-ai-langgraph,High,test_infrastructure,3,0,3,False
+langchain-ai-langgraph,High,repository_structure,4,0,4,False
