@@ -155,6 +155,28 @@ class AuditReport(BaseModel):
     evidence_summary: Dict[str, int] = Field(description="Count of evidence by detector")
 
 
+class AuditRun(BaseModel):
+    """Data object for a single deterministic audit run."""
+    run_id: int
+    timestamp: datetime = Field(default_factory=datetime.now)
+    overall_score: float
+    opinions: List[JudicialOpinion]
+    registry_state: Dict[str, EvidenceRecord]
+    contradictions_found: List[str] = Field(default_factory=list)
+
+
+class MetaAuditState(BaseModel):
+    """Higher-order state for aggregating multiple audit runs."""
+    repo_url: str
+    runs: List[AuditRun] = Field(default_factory=list)
+    meta_registry: Dict[str, EvidenceRecord] = Field(default_factory=dict)
+    meta_scores: Dict[str, float] = Field(default_factory=dict)
+    coherence_penalties: List[str] = Field(default_factory=list)
+    reasoning_trace: List[str] = Field(default_factory=list)
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
 class AgentState(BaseModel):
     """Shared state flowing through the LangGraph - Pydantic version."""
     
