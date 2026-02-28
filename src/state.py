@@ -68,6 +68,10 @@ from typing import List, Dict, Optional, Any, Literal, Annotated
 from datetime import datetime
 import operator
 
+from src.core.evidence_registry import EvidenceRegistry, EvidenceRecord
+from src.core.evidence_graph import EvidenceGraph
+import uuid
+
 def merge_dicts(left: Dict[str, List[Any]], right: Dict[str, List[Any]]) -> Dict[str, List[Any]]:
     """Merge evidence dictionaries by concatenating lists for matching keys."""
     res = left.copy() if left else {}
@@ -87,6 +91,7 @@ def merge_dicts(left: Dict[str, List[Any]], right: Dict[str, List[Any]]) -> Dict
 class Evidence(BaseModel):
     """Forensic evidence collected by detectives."""
     
+    id: str = Field(default_factory=lambda: f"ev_{uuid.uuid4().hex[:8]}")
     goal: str = Field(description="What we were looking for")
     found: bool = Field(description="Whether the artifact exists")
     content: Optional[str] = Field(default=None, description="Actual evidence content")
@@ -96,6 +101,18 @@ class Evidence(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now, description="When evidence was collected")
     detector: str = Field(default="unknown", description="Which detective collected this")
 
+    def to_record(self) -> EvidenceRecord:
+        """Adapter to migrate legacy Evidence to canonical EvidenceRecord."""
+        source_map = {"repo": "repo", "doc": "pdf", "vision": "vision"}
+        return EvidenceRecord(
+            id=self.id,
+            source=source_map.get(self.detector, "repo"),
+            artifact_path=self.location,
+            claim_reference=self.goal,
+            exists=self.found,
+            metadata={"content": self.content, "rationale": self.rationale, "confidence": self.confidence}
+        )
+
 
 class JudicialOpinion(BaseModel):
     """Opinion from a judge persona."""
@@ -104,7 +121,7 @@ class JudicialOpinion(BaseModel):
     criterion_id: str
     score: int = Field(ge=1, le=5, description="Score from 1-5")
     argument: str = Field(description="Detailed reasoning")
-    cited_evidence: List[str] = Field(default_factory=list, description="Evidence IDs referenced")
+    cited_evidence_ids: List[str] = Field(default_factory=list, description="Explicit Evidence IDs referenced from registry")
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
@@ -146,7 +163,11 @@ class AgentState(BaseModel):
     pdf_path: str
     rubric_dimensions: List[Dict[str, Any]] = Field(default_factory=list)
     
-    # Evidence collected
+    # Phase 3 Canonical Dependencies
+    registry: EvidenceRegistry = Field(default_factory=EvidenceRegistry)
+    graph: EvidenceGraph = Field(default_factory=EvidenceGraph)
+    
+    # Evidence collected (Legacy representation)
     evidences: Annotated[Dict[str, List[Evidence]], merge_dicts] = Field(default_factory=dict)
     
     # Judicial opinions
