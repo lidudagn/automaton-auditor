@@ -8,6 +8,8 @@ class EvidenceRecord(BaseModel):
     artifact_path: Optional[str] = Field(default=None, description="The file path or commit hash")
     claim_reference: Optional[str] = Field(default=None, description="The specific goal/claim this addresses")
     exists: bool = Field(description="Whether the claim is factually true/exists")
+    stability_score: float = Field(default=1.0, description="Consistency score across multiple runs (0.0 to 1.0)")
+    seen_in_runs: List[int] = Field(default_factory=list, description="List of run IDs where this evidence was found")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional context or snippets")
 
 
