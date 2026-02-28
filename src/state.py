@@ -121,6 +121,7 @@ class CriterionResult(BaseModel):
     tech_lead_score: int = Field(ge=1, le=5)
     dissent_summary: Optional[str] = None
     contradiction_flag: bool = Field(default=False, description="True if repo and doc evidence conflict")
+    reasoning_trace: List[str] = Field(default_factory=list, description="Ordered log of deterministic rules and overrides applied")
     remediation: str = Field(default="", description="Specific improvement instructions")
 
 

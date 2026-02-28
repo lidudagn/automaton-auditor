@@ -38,6 +38,11 @@ def generate_markdown_report(report: AuditReport) -> str:
             md.append(f"\n> [!CAUTION] Cross-Evidence Contradiction")
             md.append(f"> Theoretical claims in documentation conflict directly with repository artifacts. Score has been algorithmically penalized.")
             
+        if getattr(crit, "reasoning_trace", None):
+            md.append(f"\n**⚖️ Chief Justice Reasoning Trace:**")
+            for step in crit.reasoning_trace:
+                md.append(f"- {step}")
+                
         if crit.remediation:
             md.append(f"\n**Remediation Action:**")
             md.append(f"{crit.remediation}\n")
