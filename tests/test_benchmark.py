@@ -6,9 +6,14 @@ from src.state import AgentState, AuditReport, CriterionResult
 # We will test the metrics calculation portion of the benchmark script.
 from src.benchmark import generate_calibration_curves
 
+class MockCriterion:
+    def __init__(self):
+        self.reasoning_trace = []
+
 class MockReport:
     def __init__(self, overall_score):
         self.overall_score = overall_score
+        self.criteria = [MockCriterion()]
 
 def test_generate_calibration_curves_logic(caplog):
     """Test the calculation and formatting output logic implicitly by reading logs."""
@@ -33,7 +38,7 @@ def test_generate_calibration_curves_logic(caplog):
         assert "Tier: High (2 targets)" in output
         assert "Overall Average Final Score: 4.8/5.0" in output
         assert "Total Criteria Evaluated:     3" in output
-        assert "Total Contradictions Caught:  1" in output
+        assert "Total Contradictions Caught:    1" in output
         assert "Cumulative Base Score:        14" in output
         assert "Cumulative Penalty Applied:  -2" in output
         assert "Cumulative Final Score:       12" in output
@@ -42,7 +47,7 @@ def test_generate_calibration_curves_logic(caplog):
     assert "Tier: High (2 targets)" in output
     assert "Overall Average Final Score: 4.8/5.0" in output
     assert "Total Criteria Evaluated:     3" in output
-    assert "Total Contradictions Caught:  1" in output
+    assert "Total Contradictions Caught:    1" in output
     assert "Cumulative Base Score:        14" in output
     assert "Cumulative Penalty Applied:  -2" in output
     assert "Cumulative Final Score:       12" in output

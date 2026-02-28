@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 TARGETS_FILE = "config/benchmark_targets.json"
 RESULTS_FILE = "benchmark_results.csv"
 
-# Pre-defined dimensions for the benchmark runs
+# Generic Pre-defined dimensions mapped strictly to Detective Node Evidence Goals
 DEFAULT_DIMENSIONS = [
-    {"id": "architecture_clarity", "name": "Architecture Clarity"},
-    {"id": "security_posture", "name": "Security Posture"},
-    {"id": "testing_rigor", "name": "Testing Rigor"},
-    {"id": "documentation_accuracy", "name": "Documentation Accuracy"}
+    {"id": "graph_orchestration_architecture", "name": "Core Architecture & Modularity"},
+    {"id": "state_management_rigor", "name": "State Management & Resilience"},
+    {"id": "test_infrastructure", "name": "Testing Rigor & Coverage"},
+    {"id": "repository_structure", "name": "Repository Format & Onboarding"}
 ]
 
 async def run_benchmark():
@@ -143,6 +143,20 @@ def generate_calibration_curves(tier_stats: Dict[str, List[Any]], all_results: L
         total_penalties = sum(row["penalty_applied"] for row in tier_rows)
         contradictions_found = sum(1 for row in tier_rows if row["contradiction_flag"])
         
+        # Parse reasoning trace events
+        hallucination_prunes = 0
+        variance_prunes = 0
+        security_overrides = 0
+        coherence_penalties = 0
+        
+        for report in reports:
+            for c in report.criteria:
+                trace_text = " ".join(c.reasoning_trace).lower()
+                hallucination_prunes += trace_text.count("pruned due to invalid citation")
+                variance_prunes += trace_text.count("variance arbitration triggered")
+                security_overrides += trace_text.count("capped by security protocol")
+                coherence_penalties += trace_text.count("systemic coherence")
+        
         # Simple ASCII Bar representation for Net Impact
         impact_percent = (total_penalties / total_base) * 100 if total_base > 0 else 0
         bar = "█" * int(impact_percent / 2)
@@ -151,7 +165,13 @@ def generate_calibration_curves(tier_stats: Dict[str, List[Any]], all_results: L
         logger.info(f"\n🏷️  Tier: {tier} ({len(reports)} targets)")
         logger.info(f"   Overall Average Final Score: {avg_final:.1f}/5.0")
         logger.info(f"   Total Criteria Evaluated:     {len(tier_rows)}")
-        logger.info(f"   Total Contradictions Caught:  {contradictions_found}")
+        logger.info(f"   --- Phase 3 Tracking ---")
+        logger.info(f"   Citation Hallucinations Pruned: {hallucination_prunes}")
+        logger.info(f"   Variance Re-evaluations:        {variance_prunes}")
+        logger.info(f"   Security Overrides Fired:       {security_overrides}")
+        logger.info(f"   Systemic Coherence Caps:        {coherence_penalties}")
+        logger.info(f"   Total Contradictions Caught:    {contradictions_found}")
+        logger.info(f"   ------------------------")
         logger.info(f"   Cumulative Base Score:        {total_base}")
         logger.info(f"   Cumulative Penalty Applied:  -{total_penalties}")
         logger.info(f"   Cumulative Final Score:       {total_final}")
@@ -162,6 +182,9 @@ def generate_calibration_curves(tier_stats: Dict[str, List[Any]], all_results: L
         md_content += f"- **Overall Average Final Score**: {avg_final:.1f}/5.0\n"
         md_content += f"- **Total Criteria Evaluated**: {len(tier_rows)}\n"
         md_content += f"- **Total Contradictions Caught**: {contradictions_found}\n"
+        md_content += f"- **Citation Hallucinations Pruned**: {hallucination_prunes}\n"
+        md_content += f"- **Variance Re-evaluations**: {variance_prunes}\n"
+        md_content += f"- **Systemic Coherence Caps**: {coherence_penalties}\n"
         md_content += f"- **Cumulative Base Score**: {total_base}\n"
         md_content += f"- **Cumulative Penalty Applied**: -{total_penalties}\n"
         md_content += f"- **Cumulative Final Score**: {total_final}\n"
