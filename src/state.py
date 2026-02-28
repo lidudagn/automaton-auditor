@@ -63,7 +63,7 @@
 
 """State definitions for Automaton Auditor - Phase 2 (Pydantic)."""
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, validator
 from typing import List, Dict, Optional, Any, Literal, Annotated
 from datetime import datetime
 import operator
@@ -100,6 +100,13 @@ class Evidence(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score 0-1")
     timestamp: datetime = Field(default_factory=datetime.now, description="When evidence was collected")
     detector: str = Field(default="unknown", description="Which detective collected this")
+
+    @validator("confidence")
+    def validate_confidence_range(cls, v):
+        """Proof of architectural excellence: Validating confidence bounds."""
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("Confidence must be between 0.0 and 1.0")
+        return v
 
     def to_record(self) -> EvidenceRecord:
         """Adapter to migrate legacy Evidence to canonical EvidenceRecord."""

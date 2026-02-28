@@ -448,7 +448,9 @@ def detect_structured_output_nuance(repo_path: str) -> Evidence:
         "BaseModel": 0.4,
         "TypedDict": 0.3,
         "dataclass": 0.2,
-        "->": 0.1  # Type hints
+        "Field": 0.1,
+        "Annotated": 0.1,
+        "->": 0.05  # Found everywhere, low signal
     }
     
     found_signals = set()
@@ -482,9 +484,10 @@ def detect_safe_tool_nuance(repo_path: str) -> Evidence:
     signals = []
     
     patterns = {
-        "try:": 0.4, # General exception handling
-        "validate": 0.3, # Validation logic
+        "@validator": 0.4, # Pydantic specific excellence
+        "validate_": 0.3, # Custom validation
         "sanitize": 0.2, # Path/input sanitization
+        "try:": 0.1, # Too generic
         "subprocess.run": 0.1 # Tool execution
     }
     
@@ -519,10 +522,10 @@ def detect_judicial_nuance(repo_path: str) -> Evidence:
     signals = []
     
     patterns = {
-        "average": 0.4,
-        "variance": 0.3,
-        "weight": 0.2,
-        "dissent": 0.1
+        "reasoning_trace": 0.4, # Advanced phase 3+ logic
+        "arbitration": 0.3,
+        "variance": 0.2,
+        "weight": 0.1
     }
     
     found_signals = set()

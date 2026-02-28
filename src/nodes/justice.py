@@ -49,18 +49,18 @@ class ChiefJusticeNode:
         Graduated penalty based on evidence confidence.
         Returns: (score_override, status, remediation, dissent, trace)
         """
-        if max_confidence < 0.2:
+        if max_confidence < 0.3:
             logger.info(f"  🚨 CALIBRATED OVERRIDE: Heavy penalty for {criterion_id} (Confidence: {max_confidence:.2f})")
             remediation = f"CRITICAL MISSING COMPONENT: No tangible artifacts found matching {criterion_id}."
             dissent_summary = "Overruled judges; confidence threshold not met for architectural claims."
-            reasoning_trace.append(f"Calibrated Override Triggered: Heavy penalty (Score 1) due to extremely low evidence confidence ({max_confidence:.2f}).")
+            reasoning_trace.append(f"Calibrated Override Triggered: Heavy penalty (Score 1) due to low evidence confidence ({max_confidence:.2f}).")
             return 1, "OVERRIDE_HEAVY", remediation, dissent_summary, reasoning_trace
         
-        if max_confidence < 0.5:
+        if max_confidence < 0.7:
             logger.info(f"  ⚠️ CALIBRATED OVERRIDE: Moderate penalty for {criterion_id} (Confidence: {max_confidence:.2f})")
-            remediation = f"PARTIAL IMPLEMENTATION: Weak architectural signals for {criterion_id}. Recommend explicit artifacts."
-            reasoning_trace.append(f"Calibrated Override Triggered: Moderate penalty (Cap 3) due to partial evidence confidence ({max_confidence:.2f}).")
-            return 3, "OVERRIDE_MODERATE", remediation, dissent_summary, reasoning_trace
+            remediation = f"GENERIC IMPLEMENTATION: Only basic signals found for {criterion_id}. Lacks advanced architectural patterns."
+            reasoning_trace.append(f"Calibrated Override Triggered: Moderate penalty (Cap 2) due to mid-range evidence confidence ({max_confidence:.2f}).")
+            return 2, "OVERRIDE_MODERATE", remediation, dissent_summary, reasoning_trace
             
         reasoning_trace.append(f"Calibrated Override Passed: Sufficient evidence confidence ({max_confidence:.2f}).")
         return None, "PASSED", remediation, dissent_summary, reasoning_trace
