@@ -511,6 +511,7 @@ def main_detective_work(repo_url: str, full_history: bool = False) -> List[Evide
         evidences.append(git_evidence)
         
         # STEP 5: Check for State Management Evidence
+        py_files = find_python_files(repo_path)
         state_related_files = []
         for file in py_files:
             lower_f = file.lower()
@@ -537,7 +538,6 @@ def main_detective_work(repo_url: str, full_history: bool = False) -> List[Evide
         evidences.append(structure_evidence)
         
         # STEP 8: Look for Python files count
-        py_files = find_python_files(repo_path)
         if py_files:
             py_evidence = Evidence(
                 goal="Python Files Present",
