@@ -424,6 +424,9 @@ class EvidenceAggregatorNode:
         if not state.evidences:
             logger.info("No evidence collected")
             return {}
+            
+        # Clear existing graph to prevent duplication on re-runs
+        state.graph.clear()
         
         total = 0
         successful = 0
@@ -436,14 +439,27 @@ class EvidenceAggregatorNode:
             det_name = detector.upper()
             logger.info("%s: %d evidence items", det_name, count)
             
-            # Print sample evidence (first 2 items)
-            for i, ev in enumerate(ev_list[:2]):
-                status = "PASS" if ev.found else "FAIL"
-                logger.debug("   %d. [%s] %s - %s", i+1, status, ev.goal, ev.rationale[:60])
+            for i, ev in enumerate(ev_list):
+                # Phase 3: Add to Canonical Evidence Registry
+                record = ev.to_record()
+                state.registry.add(record)
+                
+                # Phase 3: Simple graph linking (Claim -> Repo Artifact map)
+                if detector == "repo" and ev.found:
+                    # Link the high-level goal text to this specific underlying code artifact ID
+                    state.graph.link(ev.goal, record.id)
+                elif detector == "doc" and ev.found:
+                    # Link the source PDF to the claim goal ID
+                    state.graph.link("SRC_PDF", record.id)
+
+                if i < 2:
+                    status = "PASS" if ev.found else "FAIL"
+                    logger.debug("   %d. [%s] %s - %s", i+1, status, ev.goal, ev.rationale[:60])
         
         # Summary statistics using state helper methods
         logger.info("SUMMARY: Total evidence items: %d, Successful findings: %d, Success rate: %.1f%%",
                     state.get_evidence_count(), state.get_successful_evidence(), state.get_success_rate())
+        logger.info(f"REGISTRY: Loaded {len(state.registry.all())} canonical records into EvidenceRegistry.")
         
         return {}
     

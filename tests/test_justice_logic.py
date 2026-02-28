@@ -15,9 +15,9 @@ def test_extreme_high_outlier_removed():
         pdf_path="",
         evidences={}, # No evidence found
         opinions=[
-            JudicialOpinion(judge="Prosecutor", criterion_id="test_criterion", score=1, argument="No evidence", cited_evidence=[]),
-            JudicialOpinion(judge="TechLead", criterion_id="test_criterion", score=1, argument="No evidence", cited_evidence=[]),
-            JudicialOpinion(judge="Defense", criterion_id="test_criterion", score=5, argument="I hallucinated", cited_evidence=[]) # Extreme high outlier
+            JudicialOpinion(judge="Prosecutor", criterion_id="test_criterion", score=1, argument="No evidence", cited_evidence_ids=[]),
+            JudicialOpinion(judge="TechLead", criterion_id="test_criterion", score=1, argument="No evidence", cited_evidence_ids=[]),
+            JudicialOpinion(judge="Defense", criterion_id="test_criterion", score=5, argument="I hallucinated", cited_evidence_ids=[]) # Extreme high outlier
         ]
     )
     
@@ -49,9 +49,9 @@ def test_extreme_low_outlier_removed():
             ]
         },
         opinions=[
-            JudicialOpinion(judge="Defense", criterion_id="test_criterion", score=5, argument="Good", cited_evidence=[]),
-            JudicialOpinion(judge="TechLead", criterion_id="test_criterion", score=5, argument="Good", cited_evidence=[]),
-            JudicialOpinion(judge="Prosecutor", criterion_id="test_criterion", score=1, argument="I disagree forever", cited_evidence=[]) # Extreme low outlier
+            JudicialOpinion(judge="Defense", criterion_id="test_criterion", score=5, argument="Good", cited_evidence_ids=[]),
+            JudicialOpinion(judge="TechLead", criterion_id="test_criterion", score=5, argument="Good", cited_evidence_ids=[]),
+            JudicialOpinion(judge="Prosecutor", criterion_id="test_criterion", score=1, argument="I disagree forever", cited_evidence_ids=[]) # Extreme low outlier
         ]
     )
     
@@ -66,3 +66,46 @@ def test_extreme_low_outlier_removed():
     assert report.criteria[0].final_score == 5
     assert report.criteria[0].dissent_summary is not None
     assert "Variance > 2" in report.criteria[0].dissent_summary
+
+
+def test_hallucination_citation_pruning():
+    """
+    Test simulating `[5, 5, 5]` but one judge cites an invalid registry ID.
+    The judge must be pruned, final score recalculates, and reasoning trace logs the pruning.
+    """
+    node = ChiefJusticeNode()
+    
+    state = AgentState(
+        repo_url="https://github.com/test",
+        pdf_path="",
+        evidences={
+            "repo": [
+                Evidence(goal="Verify architecture exists", found=True, location="", rationale="", confidence=1.0)
+            ]
+        },
+        opinions=[
+            JudicialOpinion(judge="Defense", criterion_id="architecture", score=5, argument="Solid", cited_evidence_ids=["valid_id_1"]),
+            JudicialOpinion(judge="TechLead", criterion_id="architecture", score=5, argument="Great", cited_evidence_ids=["valid_id_1"]),
+            JudicialOpinion(judge="Prosecutor", criterion_id="architecture", score=5, argument="Fake code exists", cited_evidence_ids=["made_up_id_99"])
+        ]
+    )
+    
+    # Pre-load registry with the valid evidence so fact supremacy passes
+    from src.core.evidence_registry import EvidenceRecord
+    state.registry.add(EvidenceRecord(
+        id="valid_id_1", source="repo", exists=True, claim_reference="architecture"
+    ))
+    
+    result = node(state)
+    report = result.get("final_report")
+    
+    assert report is not None
+    assert len(report.criteria) == 1
+    
+    crit = report.criteria[0]
+    # Check reasoning trace logged the specific Prosecutor pruning
+    trace_text = " ".join(crit.reasoning_trace)
+    assert "Prosecutor pruned due to invalid citation" in trace_text or "hallucination" in trace_text.lower() or "invalid citation" in trace_text.lower()
+    
+    # Ensure they were pruned and remaining scores dictated the final average (which is still 5 here)
+    assert crit.final_score == 5

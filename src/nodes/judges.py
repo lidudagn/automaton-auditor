@@ -34,8 +34,8 @@ Review the evidence for this rubric criterion:
 CRITERION: {criterion_name}
 CRITERION ID: {criterion_id}
 
-EVIDENCE SUMMARY:
-{evidence_summary}
+EVIDENCE_REGISTRY:
+{evidence_registry}
 
 You are the {judge_name}. Based on the evidence above, provide your JudicialOpinion.
 
@@ -44,7 +44,7 @@ Your opinion must include:
 - criterion_id: "{criterion_id}"
 - score: 1-5 integer following your persona's guidelines
 - argument: Detailed reasoning (2-3 sentences)
-- cited_evidence: List of evidence goals you referenced
+- cited_evidence_ids: List of valid Evidence IDs from the registry above that you referenced
 
 Return ONLY the JudicialOpinion object.
 """)
@@ -52,34 +52,35 @@ Return ONLY the JudicialOpinion object.
         
         self.chain = self.prompt | self.structured_llm
     
-    def _summarize_evidence(self, state: AgentState, criterion_id: str) -> str:
-        """Create a summary of relevant evidence for the criterion."""
+    def _format_evidence_registry(self, state: AgentState, criterion_id: str) -> str:
+        """Create a summary of canonical registry records relevant to the criterion."""
         summary = []
         
-        for detector, ev_list in state.evidences.items():
-            for ev in ev_list:
-                # Check if evidence matches criterion
-                if (criterion_id.lower() in ev.goal.lower() or 
-                    any(word in ev.goal.lower() for word in criterion_id.lower().split('_'))):
-                    
-                    status = "✅ FOUND" if ev.found else "❌ MISSING"
-                    summary.append(
-                        f"[{detector.upper()}] {ev.goal}: {status}\n"
-                        f"  Location: {ev.location}\n"
-                        f"  Rationale: {ev.rationale}\n"
-                        f"  Confidence: {ev.confidence*100:.0f}%\n"
-                    )
+        # Pull from the deterministic EvidenceRegistry
+        for record_id, record in state.registry.all().items():
+            if record.claim_reference and (
+                criterion_id.lower() in record.claim_reference.lower() or 
+                any(word in record.claim_reference.lower() for word in criterion_id.lower().split('_'))
+            ):
+                summary.append(
+                    f"- ID: {record.id}\n"
+                    f"  source: {record.source}\n"
+                    f"  artifact_path: {record.artifact_path or 'N/A'}\n"
+                    f"  claim_reference: {record.claim_reference}\n"
+                    f"  exists: {record.exists}\n"
+                    f"  rationale: {record.metadata.get('rationale', 'N/A')}\n"
+                )
         
         if not summary:
-            # If no direct matches, show recent evidence
-            for detector, ev_list in list(state.evidences.items())[:2]:
-                for ev in ev_list[:2]:
-                    summary.append(
-                        f"[{detector.upper()}] {ev.goal}: {'✅' if ev.found else '❌'}\n"
-                        f"  {ev.rationale[:100]}...\n"
-                    )
-        
-        return "\n".join(summary) if summary else "No relevant evidence found."
+            # If no direct matches, show all recent registry items contextually
+            for record_id, record in list(state.registry.all().items())[:5]:
+                summary.append(
+                    f"- ID: {record.id}\n"
+                    f"  exists: {record.exists}\n"
+                    f"  claim_reference: {record.claim_reference}\n"
+                )
+                
+        return "\n".join(summary) if summary else "No factual registry records found."
 
 
 class ProsecutorNode(BaseJudgeNode):
@@ -110,14 +111,14 @@ class ProsecutorNode(BaseJudgeNode):
             criterion_id = dim.get("id", dim.get("name", "unknown"))
             criterion_name = dim.get("name", criterion_id)
             
-            evidence_summary = self._summarize_evidence(state, criterion_id)
+            evidence_registry = self._format_evidence_registry(state, criterion_id)
             
             try:
                 opinion = self.chain.invoke({
                     "judge_name": self.judge_name,
                     "criterion_name": criterion_name,
                     "criterion_id": criterion_id,
-                    "evidence_summary": evidence_summary
+                    "evidence_registry": evidence_registry
                 })
                 
                 # Ensure timestamp is set
@@ -134,7 +135,7 @@ class ProsecutorNode(BaseJudgeNode):
                     criterion_id=criterion_id,
                     score=1,
                     argument=f"Error evaluating: {str(e)}",
-                    cited_evidence=[]
+                    cited_evidence_ids=[]
                 )
                 opinions.append(fallback)
         
@@ -168,14 +169,14 @@ class DefenseNode(BaseJudgeNode):
             criterion_id = dim.get("id", dim.get("name", "unknown"))
             criterion_name = dim.get("name", criterion_id)
             
-            evidence_summary = self._summarize_evidence(state, criterion_id)
+            evidence_registry = self._format_evidence_registry(state, criterion_id)
             
             try:
                 opinion = self.chain.invoke({
                     "judge_name": self.judge_name,
                     "criterion_name": criterion_name,
                     "criterion_id": criterion_id,
-                    "evidence_summary": evidence_summary
+                    "evidence_registry": evidence_registry
                 })
                 
                 opinion.timestamp = datetime.now()
@@ -190,7 +191,7 @@ class DefenseNode(BaseJudgeNode):
                     criterion_id=criterion_id,
                     score=3,
                     argument=f"Error evaluating, defaulting to average: {str(e)}",
-                    cited_evidence=[]
+                    cited_evidence_ids=[]
                 )
                 opinions.append(fallback)
         
@@ -224,14 +225,14 @@ class TechLeadNode(BaseJudgeNode):
             criterion_id = dim.get("id", dim.get("name", "unknown"))
             criterion_name = dim.get("name", criterion_id)
             
-            evidence_summary = self._summarize_evidence(state, criterion_id)
+            evidence_registry = self._format_evidence_registry(state, criterion_id)
             
             try:
                 opinion = self.chain.invoke({
                     "judge_name": self.judge_name,
                     "criterion_name": criterion_name,
                     "criterion_id": criterion_id,
-                    "evidence_summary": evidence_summary
+                    "evidence_registry": evidence_registry
                 })
                 
                 opinion.timestamp = datetime.now()
@@ -246,7 +247,7 @@ class TechLeadNode(BaseJudgeNode):
                     criterion_id=criterion_id,
                     score=3,
                     argument=f"Error evaluating, assuming average: {str(e)}",
-                    cited_evidence=[]
+                    cited_evidence_ids=[]
                 )
                 opinions.append(fallback)
         

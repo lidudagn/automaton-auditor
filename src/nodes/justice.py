@@ -178,7 +178,7 @@ class ChiefJusticeNode:
             for op in ops:
                 scores[op.judge] = op.score
                 arguments[op.judge] = op.argument
-                cited_evidences[op.judge] = op.cited_evidence
+                cited_evidences[op.judge] = getattr(op, "cited_evidence_ids", [])
                 logger.info(f"  [{op.judge}] {op.score}/5 - {op.argument[:70]}...")
             
             # Gather evidence facts for this criterion
@@ -197,6 +197,16 @@ class ChiefJusticeNode:
             dissent_summary = None
             remediation = "Continue tracking."
             reasoning_trace = []
+            
+            # Step 0: Citation Validation (Phase 3 Anti-Hallucination)
+            for judge in list(valid_judges):
+                citations = cited_evidences.get(judge, [])
+                for cit in citations:
+                    if not state.registry.exists(cit):
+                        logger.info(f"  ❌ INVALIDATING OUTLIER ({judge}): Hallucinated invalid citation ID '{cit}'.")
+                        valid_judges.remove(judge)
+                        reasoning_trace.append(f"Citation Validation Triggered: Judge {judge} pruned due to invalid citation: {cit} not found in registry.")
+                        break # Only prune once per judge
             
             # Step 1: Fact Supremacy (Absolute Reality Layer)
             final_score, remediation, dissent_summary, stop_eval, reasoning_trace = self._apply_fact_supremacy(
@@ -257,7 +267,30 @@ class ChiefJusticeNode:
                 remediation=remediation
             ))
             
-            overall_score_sum += final_score
+        # --- Step 7: Cross-Criterion Coherence Guards (Phase 3 Systemic Intelligence) ---
+        # Map criteria by ID for quick lookup
+        crit_map = {c.dimension_id.lower(): c for c in final_criteria_results}
+        
+        # 1. Architecture high but state management low
+        arch_crit = next((c for c in final_criteria_results if "architecture" in c.dimension_id.lower()), None)
+        state_crit = next((c for c in final_criteria_results if "state" in c.dimension_id.lower()), None)
+        if arch_crit and state_crit and arch_crit.final_score >= 4 and state_crit.final_score <= 2:
+            logger.info("  🧠 SYSTEMIC COHERENCE: Penalizing Architecture due to poor state management.")
+            arch_crit.final_score -= 1
+            arch_crit.reasoning_trace.append("Systemic Coherence Penalty: Architecture score reduced by 1 because State Management validation failed downstream.")
+            global_contradictions.append("Systemic Incoherence: High abstraction (Architecture) built on failing foundation (State Management).")
+
+        # 2. Testing missing but overall > 4 context (simplified to: if testing is 1, no other score can be 5)
+        test_crit = next((c for c in final_criteria_results if "test" in c.dimension_id.lower()), None)
+        if test_crit and test_crit.final_score == 1:
+            for c in final_criteria_results:
+                if c.final_score == 5 and c.dimension_id != test_crit.dimension_id:
+                    logger.info(f"  🧠 SYSTEMIC COHERENCE: Capping {c.dimension_id} at 4 because testing is entirely missing.")
+                    c.final_score = 4
+                    c.reasoning_trace.append("Systemic Coherence Cap: Score capped at 4. Perfection (5) cannot be claimed without verifiable tests.")
+                    
+        # Re-calculate overall score sum after systemic adjustments
+        overall_score_sum = sum(c.final_score for c in final_criteria_results)
 
         # Generate Final Audit Report
         overall_avg = overall_score_sum / len(by_criterion) if by_criterion else 0.0
