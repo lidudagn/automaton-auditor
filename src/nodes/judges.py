@@ -21,7 +21,7 @@ class BaseJudgeNode:
     
     def __init__(self, judge_name: str, system_prompt: str):
         self.judge_name = judge_name
-        self.llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
+        self.llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0)
         
         # Use structured output to enforce JudicialOpinion schema
         self.structured_llm = self.llm.with_structured_output(JudicialOpinion)
@@ -113,6 +113,10 @@ class ProsecutorNode(BaseJudgeNode):
             
             evidence_registry = self._format_evidence_registry(state, criterion_id)
             
+            import time
+            import random
+            time.sleep(random.uniform(1.0, 3.0)) # Stable jitter
+            
             try:
                 opinion = self.chain.invoke({
                     "judge_name": self.judge_name,
@@ -171,6 +175,10 @@ class DefenseNode(BaseJudgeNode):
             
             evidence_registry = self._format_evidence_registry(state, criterion_id)
             
+            import time
+            import random
+            time.sleep(random.uniform(1.0, 3.0)) # Stable jitter
+            
             try:
                 opinion = self.chain.invoke({
                     "judge_name": self.judge_name,
@@ -226,6 +234,10 @@ class TechLeadNode(BaseJudgeNode):
             criterion_name = dim.get("name", criterion_id)
             
             evidence_registry = self._format_evidence_registry(state, criterion_id)
+            
+            import time
+            import random
+            time.sleep(random.uniform(1.0, 3.0)) # Stable jitter
             
             try:
                 opinion = self.chain.invoke({
