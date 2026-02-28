@@ -177,24 +177,48 @@ def analyze_pdf_report(pdf_path: str) -> List[Evidence]:
         if analysis["has_text"] and analysis["extracted_text"]:
             text = analysis["extracted_text"]
             
-            keywords = [
-                "Dialectical Synthesis", "Fan-In", "Fan-Out",
-                "Metacognition", "State Synchronization",
-                "parallel", "detective", "judge", "LangGraph"
-            ]
+            # PHASE 3: Semantic Clusters (Architecture & Governance)
+            clusters = {
+                "Architectural Depth": [
+                    "dialectical", "state synchronization", "orchestration", 
+                    "graph swarm", "parallel execution", "metacognition",
+                    "fan-in", "fan-out"
+                ],
+                "Autonomous Governance": [
+                    "arbitration", "justice", "nuance", "dissent", 
+                    "forensic", "compliance", "audit", "governance", 
+                    "reasoning trace"
+                ],
+                "Technical Sophistication": [
+                    "pydantic", "langgraph", "structured output", 
+                    "basemodel", "typeddict", "detector", "visioninspector"
+                ]
+            }
             
-            found_keywords = []
-            for keyword in keywords:
-                if keyword.lower() in text.lower():
-                    found_keywords.append(keyword)
+            cluster_results = {}
+            total_active_signals = 0
+            
+            for cluster_name, signals in clusters.items():
+                found_in_cluster = [s for s in signals if s.lower() in text.lower()]
+                # Cluster activates only if >= 3 signals found
+                is_active = len(found_in_cluster) >= 3
+                cluster_results[cluster_name] = {
+                    "found": found_in_cluster,
+                    "active": is_active
+                }
+                if is_active:
+                    total_active_signals += len(found_in_cluster)
+            
+            # Theoretical Depth Score based on active clusters
+            active_cluster_names = [name for name, res in cluster_results.items() if res["active"]]
             
             keyword_evidence = Evidence(
                 goal="Theoretical Depth",
-                found=len(found_keywords) > 0,
-                content=", ".join(found_keywords) if found_keywords else None,
+                found=len(active_cluster_names) > 0,
+                content=f"Active Clusters: {', '.join(active_cluster_names)} | Signals: {total_active_signals}",
                 location=pdf_path,
-                rationale=f"Found {len(found_keywords)} relevant keywords: {', '.join(found_keywords[:3])}" if found_keywords else "No keywords found",
-                confidence=0.8 if len(found_keywords) > 3 else 0.5 if found_keywords else 0.2
+                rationale=f"Found {len(active_cluster_names)} active semantic clusters. Active themes: {', '.join(active_cluster_names[:2])}.",
+                confidence=min(1.0, 0.4 + (len(active_cluster_names) * 0.2)) if active_cluster_names else 0.2
             )
             evidences.append(keyword_evidence)
             

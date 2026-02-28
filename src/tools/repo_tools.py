@@ -438,6 +438,115 @@ def scan_secrets(repo_path: str) -> Evidence:
         rationale="No obvious hardcoded secrets detected in Python files",
         confidence=0.7
     )
+def detect_structured_output_nuance(repo_path: str) -> Evidence:
+    """Semi-semantic detection of structured output patterns."""
+    py_files = find_python_files(repo_path)
+    confidence = 0.0
+    signals = []
+    
+    patterns = {
+        "BaseModel": 0.4,
+        "TypedDict": 0.3,
+        "dataclass": 0.2,
+        "->": 0.1  # Type hints
+    }
+    
+    found_signals = set()
+    for f in py_files:
+        try:
+            with open(Path(repo_path) / f, 'r', encoding='utf-8', errors='ignore') as file:
+                content = file.read()
+                for p, weight in patterns.items():
+                    if p in content and p not in found_signals:
+                        confidence += weight
+                        found_signals.add(p)
+                        signals.append(p)
+        except Exception:
+            pass
+            
+    confidence = min(1.0, confidence)
+    return Evidence(
+        goal="Structured Output Enforcement",
+        found=confidence > 0.3,
+        content=", ".join(signals) if signals else None,
+        location="repository",
+        rationale=f"Detected structured output patterns: {', '.join(signals) if signals else 'None'}. Confidence: {confidence:.2f}",
+        confidence=confidence
+    )
+
+
+def detect_safe_tool_nuance(repo_path: str) -> Evidence:
+    """Semi-semantic detection of safe tool engineering patterns."""
+    py_files = find_python_files(repo_path)
+    confidence = 0.0
+    signals = []
+    
+    patterns = {
+        "try:": 0.4, # General exception handling
+        "validate": 0.3, # Validation logic
+        "sanitize": 0.2, # Path/input sanitization
+        "subprocess.run": 0.1 # Tool execution
+    }
+    
+    found_signals = set()
+    for f in py_files:
+        try:
+            with open(Path(repo_path) / f, 'r', encoding='utf-8', errors='ignore') as file:
+                content = file.read()
+                for p, weight in patterns.items():
+                    if p in content and p not in found_signals:
+                        confidence += weight
+                        found_signals.add(p)
+                        signals.append(p)
+        except Exception:
+            pass
+            
+    confidence = min(1.0, confidence)
+    return Evidence(
+        goal="Safe Tool Engineering",
+        found=confidence > 0.3,
+        content=", ".join(signals) if signals else None,
+        location="repository",
+        rationale=f"Detected safe tool patterns: {', '.join(signals) if signals else 'None'}. Confidence: {confidence:.2f}",
+        confidence=confidence
+    )
+
+
+def detect_judicial_nuance(repo_path: str) -> Evidence:
+    """Semi-semantic detection of judicial reasoning patterns."""
+    py_files = find_python_files(repo_path)
+    confidence = 0.0
+    signals = []
+    
+    patterns = {
+        "average": 0.4,
+        "variance": 0.3,
+        "weight": 0.2,
+        "dissent": 0.1
+    }
+    
+    found_signals = set()
+    for f in py_files:
+        try:
+            with open(Path(repo_path) / f, 'r', encoding='utf-8', errors='ignore') as file:
+                content = file.read()
+                for p, weight in patterns.items():
+                    if p in content and p not in found_signals:
+                        confidence += weight
+                        found_signals.add(p)
+                        signals.append(p)
+        except Exception:
+            pass
+            
+    confidence = min(1.0, confidence)
+    return Evidence(
+        goal="Judicial Nuance",
+        found=confidence > 0.3,
+        content=", ".join(signals) if signals else None,
+        location="repository",
+        rationale=f"Detected judicial logic patterns: {', '.join(signals) if signals else 'None'}. Confidence: {confidence:.2f}",
+        confidence=confidence
+    )
 
 
 def main_detective_work(repo_url: str, full_history: bool = False) -> List[Evidence]:
@@ -555,6 +664,11 @@ def main_detective_work(repo_url: str, full_history: bool = False) -> List[Evide
         evidences.append(detect_ci_presence(repo_path))
         evidences.append(detect_tests_folder(repo_path))
         evidences.append(scan_secrets(repo_path))
+        
+        # PHASE 3: Semi-Semantic Nuanced Detectors
+        evidences.append(detect_structured_output_nuance(repo_path))
+        evidences.append(detect_safe_tool_nuance(repo_path))
+        evidences.append(detect_judicial_nuance(repo_path))
         
     except Exception as e:
         # Catch any unexpected errors during analysis

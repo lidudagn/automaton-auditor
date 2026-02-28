@@ -43,17 +43,27 @@ class ChiefJusticeNode:
             
         return False, ""
 
-    def _apply_fact_supremacy(self, evidence_found_count: int, criterion_id: str, remediation: str, dissent_summary: str, reasoning_trace: List[str]) -> tuple[int, str, str, bool, List[str]]:
-        """Step 1: Fact Supremacy - Absolute reality layer."""
-        if evidence_found_count == 0:
-            logger.info("  🚨 RULE OF EVIDENCE: Overruling Defense for hallucination due to missing artifacts.")
-            remediation = f"CRITICAL MISSING COMPONENT: No valid artifacts found matching {criterion_id}."
-            if dissent_summary is None:
-                dissent_summary = f"Overruled Defense; fact supremacy requires tangible artifacts."
-            reasoning_trace.append("Fact Supremacy Triggered: No evidence found. Score set to 1. Ignored all judges.")
-            return 1, remediation, dissent_summary, True, reasoning_trace
-        reasoning_trace.append("Fact Supremacy Passed: Evidence found.")
-        return 0, remediation, dissent_summary, False, reasoning_trace
+    def _apply_calibrated_override(self, max_confidence: float, criterion_id: str, remediation: str, dissent_summary: str, reasoning_trace: List[str]) -> tuple[int, str, str, str, List[str]]:
+        """
+        Step 1: Calibrated Override (Phase 3).
+        Graduated penalty based on evidence confidence.
+        Returns: (score_override, status, remediation, dissent, trace)
+        """
+        if max_confidence < 0.2:
+            logger.info(f"  🚨 CALIBRATED OVERRIDE: Heavy penalty for {criterion_id} (Confidence: {max_confidence:.2f})")
+            remediation = f"CRITICAL MISSING COMPONENT: No tangible artifacts found matching {criterion_id}."
+            dissent_summary = "Overruled judges; confidence threshold not met for architectural claims."
+            reasoning_trace.append(f"Calibrated Override Triggered: Heavy penalty (Score 1) due to extremely low evidence confidence ({max_confidence:.2f}).")
+            return 1, "OVERRIDE_HEAVY", remediation, dissent_summary, reasoning_trace
+        
+        if max_confidence < 0.5:
+            logger.info(f"  ⚠️ CALIBRATED OVERRIDE: Moderate penalty for {criterion_id} (Confidence: {max_confidence:.2f})")
+            remediation = f"PARTIAL IMPLEMENTATION: Weak architectural signals for {criterion_id}. Recommend explicit artifacts."
+            reasoning_trace.append(f"Calibrated Override Triggered: Moderate penalty (Cap 3) due to partial evidence confidence ({max_confidence:.2f}).")
+            return 3, "OVERRIDE_MODERATE", remediation, dissent_summary, reasoning_trace
+            
+        reasoning_trace.append(f"Calibrated Override Passed: Sufficient evidence confidence ({max_confidence:.2f}).")
+        return None, "PASSED", remediation, dissent_summary, reasoning_trace
 
     def _apply_security_override(self, criterion_id: str, scores: Dict[str, int], remediation: str, reasoning_trace: List[str]) -> tuple[int, str, List[str]] | tuple[None, str, List[str]]:
         """Step 2: Security Override."""
@@ -66,20 +76,18 @@ class ChiefJusticeNode:
             reasoning_trace.append("Security Override Passed: Prosecutor did not identify safety flaws.")
         return None, remediation, reasoning_trace
 
-    def _perform_variance_arbitration(self, scores: Dict[str, int], arguments: Dict[str, str], evidence_found_count: int, dissent_summary: str, reasoning_trace: List[str]) -> tuple[List[str], str, List[str]]:
-        """Step 3: Variance Arbitration - Prune factual outliers."""
+    def _perform_variance_arbitration(self, scores: Dict[str, int], arguments: Dict[str, str], max_confidence: float, dissent_summary: str, reasoning_trace: List[str]) -> tuple[List[str], str, List[str]]:
+        """Step 3: Variance Arbitration - Prune factual outliers with sensitivity delta."""
         valid_judges = ["Prosecutor", "Defense", "TechLead"]
         max_score = max(scores.values())
         min_score = min(scores.values())
         variance = max_score - min_score
         
-        if variance > 2:
-            logger.warning(f"  ⚠️ VARIANCE RE-EVALUATION TRIGGERED (Δ{variance}): Validating citations.")
+        if variance > 1.5:
+            logger.warning(f"  ⚠️ HIGH VARIANCE DETECTED (Δ{variance}): Resolving judge disagreement.")
             dissent_summary = (
-                f"Strong disagreement between judges (Variance > 2).\n"
-                f"Prosecutor ({scores['Prosecutor']}/5): {arguments.get('Prosecutor', 'N/A')}\n"
-                f"Defense ({scores['Defense']}/5): {arguments.get('Defense', 'N/A')}\n"
-                f"TechLead ({scores['TechLead']}/5): {arguments.get('TechLead', 'N/A')}"
+                f"Judicial disagreement observed (Δ{variance}).\n"
+                f"Explanation: Chief Justice arbitrating based on architectural evidence context."
             )
             
             # Find median
@@ -95,21 +103,21 @@ class ChiefJusticeNode:
                     max_dev = dev
                     outlier_judge = judge
             
-            if outlier_judge and max_dev > 1: # Only prune if clearly an outlier
+            if outlier_judge and max_dev > 1:
                 outlier_score = scores[outlier_judge]
-                # Fact check extreme outlier
-                if outlier_score > 2 and evidence_found_count == 0:
-                    logger.info(f"  ❌ INVALIDATING OUTLIER ({outlier_judge}): Ignored missing factual evidence.")
+                # Cross-reference with confidence
+                if outlier_score > 3 and max_confidence < 0.4:
+                    logger.info(f"  ❌ PRUNING HIGH OUTLIER ({outlier_judge}): Score {outlier_score} lacks confidence {max_confidence}.")
                     valid_judges.remove(outlier_judge)
-                    reasoning_trace.append(f"Variance Arbitration Triggered: Invalidated extreme high outlier '{outlier_judge}' ({outlier_score}) conflicting with lack of factual evidence.")
-                elif outlier_score <= 2 and evidence_found_count >= 1: # simple threshold for now
-                    logger.info(f"  ❌ INVALIDATING OUTLIER ({outlier_judge}): Harshly scored despite solid factual evidence.")
+                    reasoning_trace.append(f"Variance Arbitration: Pruned high outlier '{outlier_judge}' ({outlier_score}) due to low evidence confidence ({max_confidence:.2f}).")
+                elif outlier_score < 2 and max_confidence > 0.7:
+                    logger.info(f"  ❌ PRUNING LOW OUTLIER ({outlier_judge}): Score {outlier_score} ignores high confidence {max_confidence}.")
                     valid_judges.remove(outlier_judge)
-                    reasoning_trace.append(f"Variance Arbitration Triggered: Invalidated extreme low outlier '{outlier_judge}' ({outlier_score}) conflicting with confirmed factual evidence.")
+                    reasoning_trace.append(f"Variance Arbitration: Pruned low outlier '{outlier_judge}' ({outlier_score}) despite high evidence confidence ({max_confidence:.2f}).")
                 else:
-                    reasoning_trace.append(f"Variance Arbitration Passed: Extreme outlier '{outlier_judge}' ({outlier_score}) not overtly contradicted by factual evidence.")
+                    reasoning_trace.append(f"Variance Arbitration: Outlier '{outlier_judge}' ({outlier_score}) kept within calibrated bounds.")
         else:
-            reasoning_trace.append(f"Variance Arbitration Passed: Variance (Δ{variance}) within acceptable limits.")
+            reasoning_trace.append(f"Variance Arbitration Passed: Variance (Δ{variance}) within stable limits.")
 
         return valid_judges, dissent_summary, reasoning_trace
 
@@ -165,7 +173,6 @@ class ChiefJusticeNode:
             by_criterion[op.criterion_id].append(op)
             
         final_criteria_results = []
-        overall_score_sum = 0
         global_contradictions = []
         
         for criterion_id, ops in by_criterion.items():
@@ -181,15 +188,17 @@ class ChiefJusticeNode:
                 cited_evidences[op.judge] = getattr(op, "cited_evidence_ids", [])
                 logger.info(f"  [{op.judge}] {op.score}/5 - {op.argument[:70]}...")
             
-            # Gather evidence facts for this criterion
+            # Gather evidence facts and max confidence for this criterion
             evidence_found_count = 0
             evidence_missing_count = 0
+            max_confidence = 0.0
             for det, ev_list in state.evidences.items():
                 for ev in ev_list:
                     if (criterion_id.lower() in ev.goal.lower() or 
                         any(word in ev.goal.lower() for word in criterion_id.lower().split('_'))):
                         if ev.found:
                             evidence_found_count += 1
+                            max_confidence = max(max_confidence, ev.confidence)
                         else:
                             evidence_missing_count += 1
 
@@ -198,40 +207,45 @@ class ChiefJusticeNode:
             remediation = "Continue tracking."
             reasoning_trace = []
             
-            # Step 0: Citation Validation (Phase 3 Anti-Hallucination)
+            # Step 0: Citation Validation (Hallucination Guard)
             for judge in list(valid_judges):
                 citations = cited_evidences.get(judge, [])
                 for cit in citations:
                     if not state.registry.exists(cit):
-                        logger.info(f"  ❌ INVALIDATING OUTLIER ({judge}): Hallucinated invalid citation ID '{cit}'.")
+                        logger.info(f"  ❌ PRUNING JUDGE ({judge}): Hallucinated citation ID '{cit}'.")
                         valid_judges.remove(judge)
-                        reasoning_trace.append(f"Citation Validation Triggered: Judge {judge} pruned due to invalid citation: {cit} not found in registry.")
-                        break # Only prune once per judge
+                        reasoning_trace.append(f"Citation Validation: Judge {judge} pruned due to invalid citation: {cit}.")
+                        break
             
-            # Step 1: Fact Supremacy (Absolute Reality Layer)
-            final_score, remediation, dissent_summary, stop_eval, reasoning_trace = self._apply_fact_supremacy(
-                evidence_found_count, criterion_id, remediation, dissent_summary, reasoning_trace
+            # Step 1: Calibrated Override (Architectural Governance)
+            override_score, status, remediation, dissent_summary, reasoning_trace = self._apply_calibrated_override(
+                max_confidence, criterion_id, remediation, dissent_summary, reasoning_trace
             )
             
-            if not stop_eval:
-                # Step 2: Security Override
-                sec_score, sec_remediation, reasoning_trace = self._apply_security_override(
-                    criterion_id, scores, remediation, reasoning_trace
-                )
-                if sec_score is not None:
-                    final_score = sec_score
-                    remediation = sec_remediation
-                
+            # Step 2: Security Override
+            sec_score, sec_remediation, reasoning_trace = self._apply_security_override(
+                criterion_id, scores, remediation, reasoning_trace
+            )
+            
+            if status == "OVERRIDE_HEAVY":
+                final_score = override_score
+            elif sec_score is not None:
+                final_score = sec_score
+                remediation = sec_remediation
+            else:
                 # Step 3: Variance Arbitration
                 valid_judges, dissent_summary, reasoning_trace = self._perform_variance_arbitration(
-                    scores, arguments, evidence_found_count, dissent_summary, reasoning_trace
+                    scores, arguments, max_confidence, dissent_summary, reasoning_trace
                 )
                 
-                if sec_score is None:
-                    # Step 4 & 5: Functionality Weight or Median Stabilization
-                    final_score, reasoning_trace = self._apply_functionality_weight_and_median(
-                        criterion_id, scores, valid_judges, reasoning_trace
-                    )
+                # Step 4 & 5: Functionality Weight or Median Stabilization
+                final_score, reasoning_trace = self._apply_functionality_weight_and_median(
+                    criterion_id, scores, valid_judges, reasoning_trace
+                )
+                
+                # If moderate override, cap the score
+                if status == "OVERRIDE_MODERATE":
+                    final_score = min(final_score, override_score)
             
             base_score = final_score
             penalty_applied = 0
@@ -289,8 +303,25 @@ class ChiefJusticeNode:
                     c.final_score = 4
                     c.reasoning_trace.append("Systemic Coherence Cap: Score capped at 4. Perfection (5) cannot be claimed without verifiable tests.")
                     
-        # Re-calculate overall score sum after systemic adjustments
+        # Generate Final Audit Report
         overall_score_sum = sum(c.final_score for c in final_criteria_results)
+        overall_avg = overall_score_sum / len(final_criteria_results) if final_criteria_results else 0.0
+        logger.info(f"\n🏆 CHIEF JUSTICE OVERALL VERDICT: {overall_avg:.1f}/5.0")
+        logger.info("="*70 + "\n")
+        
+        evidence_summary_dict = {k: len(v) for k, v in state.evidences.items()}
+        
+        final_report = AuditReport(
+            repo_url=state.repo_url,
+            executive_summary=f"Automaton Auditor examined the repository and rendered a final score of {overall_avg:.1f}/5.0. See criterion breakdown for exact flaws and mitigating factors.",
+            overall_score=overall_avg,
+            criteria=final_criteria_results,
+            remediation_plan="Review the 'Criteria Evaluation' scores of 3 or below and apply the suggested fixes.",
+            detected_contradictions=global_contradictions,
+            evidence_summary=evidence_summary_dict
+        )
+        
+        return {"final_report": final_report}
 
     def meta_override(self, meta_scores: Dict[str, float], meta_registry: Dict[str, Any], reasoning_trace: List[str]) -> tuple[Dict[str, float], List[str]]:
         """
@@ -320,22 +351,3 @@ class ChiefJusticeNode:
                     reasoning_trace.append(f"Meta-Override Applied: Boosted {crit_id} to 5.0 due to 100% evidence stability across all runs.")
 
         return adjusted_scores, reasoning_trace
-
-        # Generate Final Audit Report
-        overall_avg = overall_score_sum / len(by_criterion) if by_criterion else 0.0
-        logger.info(f"\n🏆 CHIEF JUSTICE OVERALL VERDICT: {overall_avg:.1f}/5.0")
-        logger.info("="*70 + "\n")
-        
-        evidence_summary_dict = {k: len(v) for k, v in state.evidences.items()}
-        
-        final_report = AuditReport(
-            repo_url=state.repo_url,
-            executive_summary=f"Automaton Auditor examined the repository and rendered a final score of {overall_avg:.1f}/5.0. See criterion breakdown for exact flaws and mitigating factors.",
-            overall_score=overall_avg,
-            criteria=final_criteria_results,
-            remediation_plan="Review the 'Criteria Evaluation' scores of 3 or below and apply the suggested fixes.",
-            detected_contradictions=global_contradictions,
-            evidence_summary=evidence_summary_dict
-        )
-        
-        return {"final_report": final_report}
