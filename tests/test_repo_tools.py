@@ -54,7 +54,8 @@ def test_detect_tests_folder(mock_repo):
     ev = detect_tests_folder(mock_repo)
     assert ev.found is True
     assert ev.goal == "Test Infrastructure"
-    assert ev.content == "tests"
+    assert "Test files:" in ev.content
+    assert "Ratio:" in ev.content
 
 def test_scan_secrets(mock_repo):
     ev = scan_secrets(mock_repo)

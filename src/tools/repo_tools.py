@@ -209,37 +209,48 @@ def find_stategraph_usage(repo_path: str) -> Evidence:
 
 
 def analyze_repo_structure(repo_path: str) -> Evidence:
-    """Analyze overall repository structure."""
+    """Analyze overall repository structure and core python modules."""
     try:
-        # Count Python files
         py_files = find_python_files(repo_path)
         
-        # Check for common directories
-        has_src = os.path.isdir(os.path.join(repo_path, 'src'))
+        # Discover major source directories
+        top_level_modules = []
+        for item in os.listdir(repo_path):
+            full_item = os.path.join(repo_path, item)
+            if os.path.isdir(full_item) and not item.startswith('.') and item not in ['tests', 'docs', 'examples', 'venv', '__pycache__']:
+                # only count if they contain python files or are known patterns (like src, lib)
+                if any(f.startswith(item + "/") for f in py_files) or item == 'src':
+                    top_level_modules.append(item)
+                    
+        has_src = 'src' in top_level_modules
         has_tests = os.path.isdir(os.path.join(repo_path, 'tests'))
         
         structure = []
-        if has_src:
-            structure.append("src/")
+        if top_level_modules:
+            structure.append(f"Modules: [{', '.join(top_level_modules)}]")
         if has_tests:
-            structure.append("tests/")
-        structure.append(f"{len(py_files)} Python files")
+            structure.append("Tests Present")
+        structure.append(f"Total Python Files: {len(py_files)}")
         
+        rationale = f"Repository architecture confirmed. Core modules identified: {', '.join(top_level_modules)}. System size: {len(py_files)} files."
+        if not top_level_modules:
+            rationale = f"Atypical architecture. No distinct top-level source modules detected across {len(py_files)} files."
+            
         return Evidence(
-            goal="Repository Structure",
+            goal="Repository Format & Onboarding",
             found=True,
-            content=", ".join(structure),
+            content=" | ".join(structure),
             location="repository",
-            rationale=f"Found {len(py_files)} Python files" + (" with src/" if has_src else ""),
-            confidence=0.8
+            rationale=rationale,
+            confidence=0.9 if top_level_modules else 0.6
         )
     except Exception as e:
         return Evidence(
-            goal="Repository Structure",
+            goal="Repository Format & Onboarding",
             found=False,
             content=str(e),
             location="repository",
-            rationale="Failed to analyze structure",
+            rationale="Failed to recursively analyze repository structure map.",
             confidence=0.0
         )
 
@@ -353,39 +364,35 @@ def detect_ci_presence(repo_path: str) -> Evidence:
 
 
 def detect_tests_folder(repo_path: str) -> Evidence:
-    """Detect presence of tests folder or test files."""
-    test_dirs = ["tests", "test", "spec", "tests/"]
-    for td in test_dirs:
-        if (Path(repo_path) / td).is_dir():
-            return Evidence(
-                goal="Test Infrastructure",
-                found=True,
-                content=td,
-                location=td,
-                rationale=f"Found tests directory: {td}",
-                confidence=0.9
-            )
-            
-    # Maybe check for test_*.py
+    """Detect testing infrastructure and quantify test file coverage ratio."""
     py_files = find_python_files(repo_path)
-    test_files = [f for f in py_files if f.startswith("test_") or f.endswith("_test.py") or "/test_" in f]
+    
+    test_files = [f for f in py_files if f.startswith("test_") or f.endswith("_test.py") or "/test_" in f or f.startswith("tests/")]
+    src_files = [f for f in py_files if f not in test_files]
+    
+    test_dirs = [td for td in ["tests", "test", "spec", "tests/"] if (Path(repo_path) / td).is_dir()]
     
     if test_files:
+        ratio = len(test_files) / max(len(src_files), 1)
+        coverage_desc = "High" if ratio > 0.5 else "Medium" if ratio > 0.2 else "Low"
+        
+        folders_msg = f" in folders: {', '.join(test_dirs)}" if test_dirs else ""
+        
         return Evidence(
             goal="Test Infrastructure",
             found=True,
-            content="\n".join(test_files[:5]),
-            location="various",
-            rationale=f"Found {len(test_files)} test files",
-            confidence=0.85
+            content=f"Test files: {len(test_files)} | Source files: {len(src_files)} | Ratio: {ratio:.2f}",
+            location="various" + folders_msg,
+            rationale=f"Found {len(test_files)} test files{folders_msg}. This represents a {coverage_desc} testing ratio compared to {len(src_files)} standard source files.",
+            confidence=0.9
         )
         
     return Evidence(
         goal="Test Infrastructure",
         found=False,
-        content=None,
+        content="0 test files found",
         location="repository",
-        rationale="No standard tests directory or test files found",
+        rationale=f"No standard tests directory or explicit test_*.py files discovered among {len(py_files)} total files.",
         confidence=0.8
     )
 
@@ -503,15 +510,21 @@ def main_detective_work(repo_url: str, full_history: bool = False) -> List[Evide
         )
         evidences.append(git_evidence)
         
-        # STEP 5: Check for state.py
-        has_state = check_file_exists(repo_path, "src/state.py")
+        # STEP 5: Check for State Management Evidence
+        state_related_files = []
+        for file in py_files:
+            lower_f = file.lower()
+            if any(keyword in lower_f for keyword in ["state", "store", "memory", "schema", "types", "checkpoint"]):
+                state_related_files.append(file)
+                
+        has_state = len(state_related_files) > 0
         state_evidence = Evidence(
             goal="State Management Rigor",
             found=has_state,
-            content=None,
-            location="src/state.py",
-            rationale="state.py exists" if has_state else "state.py missing",
-            confidence=0.9 if has_state else 0.1
+            content=", ".join(state_related_files[:5]),
+            location="various" if has_state else "repository",
+            rationale=f"Found {len(state_related_files)} files related to state management/typing (e.g., {state_related_files[0] if state_related_files else 'None'})",
+            confidence=0.9 if has_state else 0.5
         )
         evidences.append(state_evidence)
         
