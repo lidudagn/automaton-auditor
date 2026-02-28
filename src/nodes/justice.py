@@ -292,6 +292,35 @@ class ChiefJusticeNode:
         # Re-calculate overall score sum after systemic adjustments
         overall_score_sum = sum(c.final_score for c in final_criteria_results)
 
+    def meta_override(self, meta_scores: Dict[str, float], meta_registry: Dict[str, Any], reasoning_trace: List[str]) -> tuple[Dict[str, float], List[str]]:
+        """
+        Step 8: Meta-Audit Override (Phase 5).
+        Adjusts scores based on multi-run evidence stability.
+        """
+        logger.info("  🧠 PHASE 5 MASTER AUDITOR: Applying Meta-Audit Overrides.")
+        adjusted_scores = meta_scores.copy()
+        
+        for crit_id, score in adjusted_scores.items():
+            # Check for low stability evidence that might have inflated the score
+            relevant_evidence = [
+                ev for ev in meta_registry.values()
+                if ev.claim_reference and crit_id.lower() in ev.claim_reference.lower()
+            ]
+            
+            if relevant_evidence:
+                avg_stability = sum(ev.stability_score for ev in relevant_evidence) / len(relevant_evidence)
+                if avg_stability < 0.7:
+                    logger.warning(f"  ⚠️ SYSTEMIC UNCERTAINTY: Penalizing {crit_id} due to unstable evidence (Stability: {avg_stability:.2f})")
+                    penalty = 0.5 if avg_stability < 0.5 else 0.2
+                    adjusted_scores[crit_id] = max(1.0, score - penalty)
+                    reasoning_trace.append(f"Meta-Override Applied: Penalized {crit_id} by {penalty} due to low evidence stability ({avg_stability:.2f}).")
+                elif avg_stability == 1.0 and score >= 4.0:
+                    logger.info(f"  💎 SYSTEMIC CONFIDENCE: Boosting {crit_id} to 5.0 due to perfect evidence stability.")
+                    adjusted_scores[crit_id] = 5.0
+                    reasoning_trace.append(f"Meta-Override Applied: Boosted {crit_id} to 5.0 due to 100% evidence stability across all runs.")
+
+        return adjusted_scores, reasoning_trace
+
         # Generate Final Audit Report
         overall_avg = overall_score_sum / len(by_criterion) if by_criterion else 0.0
         logger.info(f"\n🏆 CHIEF JUSTICE OVERALL VERDICT: {overall_avg:.1f}/5.0")
