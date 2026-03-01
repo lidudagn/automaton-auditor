@@ -43,6 +43,51 @@ class ChiefJusticeNode:
             
         return False, ""
 
+    def _generate_fact_supremacy_table(self, state: AgentState) -> str:
+        """
+        Phase 4 Master Thinker: Generate a 'Verified vs Hallucinated' path table.
+        """
+        verified_paths = set()
+        for ev in state.evidences.get('repo', []):
+            if ev.found and ev.location:
+                # Some repo locations use ' | ' as separator
+                paths = [p.strip() for p in ev.location.split('|') if p.strip()]
+                verified_paths.update(paths)
+        
+        doc_claims = set()
+        for ev in state.evidences.get('doc', []):
+            if ev.found and ev.location:
+                 # Doc tools often return full lists or strings
+                 paths = [p.strip() for p in ev.location.split('\n') if p.strip()]
+                 doc_claims.update(paths)
+        
+        if not doc_claims:
+            return ""
+
+        table = "\n\n### ⚖️ Fact Supremacy: Path Cross-Reference\n"
+        table += "| Claimed Path (DOC) | Forensic Status | Artifact ID |\n"
+        table += "| :--- | :--- | :--- |\n"
+        
+        hallucination_count = 0
+        for claim in sorted(doc_claims):
+            if not claim.endswith('.py') and '/' not in claim: # Basic filter for noise
+                continue
+            is_verified = any(claim in vp or vp in claim for vp in verified_paths)
+            status = "✅ VERIFIED" if is_verified else "❌ HALLUCINATION"
+            if not is_verified: hallucination_count += 1
+            
+            art_id = "N/A"
+            for record in state.registry.all().values():
+                if record.artifact_path and claim in record.artifact_path:
+                    art_id = record.id
+                    break
+            table += f"| `{claim}` | **{status}** | {art_id} |\n"
+            
+        if hallucination_count > 0:
+            table += f"\n> [!WARNING]\n> Detected {hallucination_count} path hallucinations. Documentation claims files that do not exist in the physical repository.\n"
+            
+        return table
+
     def _apply_calibrated_override(self, max_confidence: float, criterion_id: str, remediation: str, dissent_summary: str, reasoning_trace: List[str]) -> tuple[int, str, str, str, List[str]]:
         """
         Step 1: Calibrated Override (Phase 3).
@@ -311,9 +356,12 @@ class ChiefJusticeNode:
         
         evidence_summary_dict = {k: len(v) for k, v in state.evidences.items()}
         
+        # Generate Fact Supremacy Table
+        fact_table = self._generate_fact_supremacy_table(state)
+        
         final_report = AuditReport(
             repo_url=state.repo_url,
-            executive_summary=f"Automaton Auditor examined the repository and rendered a final score of {overall_avg:.1f}/5.0. See criterion breakdown for exact flaws and mitigating factors.",
+            executive_summary=f"Automaton Auditor examined the repository and rendered a final score of {overall_avg:.1f}/5.0. See criterion breakdown for exact flaws and mitigating factors.{fact_table}",
             overall_score=overall_avg,
             criteria=final_criteria_results,
             remediation_plan="Review the 'Criteria Evaluation' scores of 3 or below and apply the suggested fixes.",
